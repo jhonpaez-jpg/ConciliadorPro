@@ -1,0 +1,6 @@
+polars
+fastexcel
+xlsx2csv
+openpyxl
+xlsxwriter
+fastapi
