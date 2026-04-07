@@ -21,6 +21,7 @@ const menuItems: MenuItem[] = [
   { id: "tolerancia", label: "Tolerancia F3 (±5 cts)", icon: Clock, group: "CONCILIACIÓN" },
   { id: "localidad", label: "Localidad F4", icon: Moon, group: "CONCILIACIÓN" },
   { id: "montopuro", label: "Monto Puro F5", icon: Cpu, group: "CONCILIACIÓN" },
+  { id: "subset", label: "Monto Puro Subset F6", icon: Cpu, group: "CONCILIACIÓN" },
   { id: "configuracion", label: "Ajustes", icon: Settings, group: "CONFIGURACIÓN" },
   { id: "reportes", label: "Reportes", icon: FileOutput, group: "CONFIGURACIÓN" },
 ];

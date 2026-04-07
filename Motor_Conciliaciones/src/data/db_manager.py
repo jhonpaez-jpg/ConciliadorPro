@@ -138,6 +138,26 @@ class DatabaseManager:
         conexion.close()
         return resultados
 
+    def obtener_todos_pendientes(self, cuenta_contable: str, id_lote: int) -> list[tuple]:
+        """
+        Devuelve todas las transacciones PENDIENTES del lote sin filtrar por localidad.
+        Mismo formato de tupla que obtener_pendientes_por_localidad — compatible con
+        filas_a_transacciones() en el router.
+        Usado por F6 (Subset Sum global) después de que F1-F5 ya actualizaron estados.
+        """
+        conexion = sqlite3.connect(self.ruta_db)
+        cursor = conexion.cursor()
+        cursor.execute("""
+            SELECT id_transaccion, descripcion, cuenta_contable,
+                   monto_centavos, n_diario, localidad, periodo, tipo, id_lote
+            FROM   TRANSACCION
+            WHERE  cuenta_contable = ? AND id_lote = ?
+              AND  estado_tx = 'PENDIENTE'
+        """, (cuenta_contable, id_lote))
+        resultados = cursor.fetchall()
+        conexion.close()
+        return resultados
+
     def registrar_conciliacion_masiva(self, grupos_conciliados: list[list[Transaccion]], fase_origen: str = "F?"):
         conexion = sqlite3.connect(self.ruta_db)
         cursor = conexion.cursor()

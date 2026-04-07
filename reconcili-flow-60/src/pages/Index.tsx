@@ -12,6 +12,7 @@ import SubsetSumSection from "@/sections/SubsetSumSection";
 import ToleranciaSection from "@/sections/ToleranciaSection";
 import LocalidadSection from "@/sections/LocalidadSection";
 import MontoPuroSection from "@/sections/MontoPuroSection";
+import SubsetSection from "@/sections/SubsetSection";
 import ProfundaSection from "@/sections/ProfundaSection";
 import ConfiguracionSection from "@/sections/ConfiguracionSection";
 import ReportesSection from "@/sections/ReportesSection";
@@ -28,6 +29,7 @@ function SectionRouter() {
     tolerancia: <ToleranciaSection />,
     localidad: <LocalidadSection />,
     montopuro: <MontoPuroSection />,
+    subset: <SubsetSection />,
     profunda: <ProfundaSection />,
     configuracion: <ConfiguracionSection />,
     reportes: <ReportesSection />,

@@ -102,6 +102,8 @@ class ReconciliationReporter:
             ("Hoja F3 (Tolerancia ±5 cts)",""),
             ("Hoja F4 (Monto+Localidad)",  ""),
             ("Hoja F5 (Monto Puro Global)",""),
+            ("Hoja F6 (Subset Sum N→1)",   ""),
+            ("Hoja F7 (Subset Sum N neg→1 pos)", ""),
             ("Hoja LOGRADO (todos + fase)",total_conci),
             ("Hoja PENDIENTES (registros)",total_pend),
         ]
@@ -110,17 +112,19 @@ class ReconciliationReporter:
             ws_res.write(i, 1, valor,    fmt_value if isinstance(valor, (int,float)) else None)
 
         # ══════════════════════════════════════════════════════════
-        # HOJAS 2-7 — Una hoja por fase (F1-F5) + LOGRADO total
+        # HOJAS 2-8 — Una hoja por fase (F1-F7) + LOGRADO total
         # ══════════════════════════════════════════════════════════
         BATCH = 10_000
 
         # Colores de header por fase
         fase_config = {
-            "F1": {"color": "#1a5c2e", "nombre": "F1 - Fast-Pass (1:1 exacto)",       "fmt": None},
-            "F2": {"color": "#1e3a8a", "nombre": "F2 - Subset Sum (N:N suma cero)",   "fmt": None},
-            "F3": {"color": "#7c3a00", "nombre": "F3 - Tolerancia ±5 centavos",       "fmt": None},
-            "F4": {"color": "#4a1d6e", "nombre": "F4 - Monto+Localidad (sin diario)", "fmt": None},
-            "F5": {"color": "#0f4c5c", "nombre": "F5 - Monto Puro Global",            "fmt": None},
+            "F1": {"color": "#1a5c2e", "nombre": "F1 - Fast-Pass (1:1 exacto)",                  "fmt": None},
+            "F2": {"color": "#1e3a8a", "nombre": "F2 - Subset Sum (N:N suma cero)",              "fmt": None},
+            "F3": {"color": "#7c3a00", "nombre": "F3 - Tolerancia ±5 centavos",                 "fmt": None},
+            "F4": {"color": "#4a1d6e", "nombre": "F4 - Monto+Localidad (sin diario)",           "fmt": None},
+            "F5": {"color": "#0f4c5c", "nombre": "F5 - Monto Puro Global",                      "fmt": None},
+            "F6": {"color": "#7b2d00", "nombre": "F6 - Subset Sum (N positivos → 1 negativo)",  "fmt": None},
+            "F7": {"color": "#5a2d00", "nombre": "F7 - Subset Sum (N negativos → 1 positivo)",  "fmt": None},
         }
 
         # Crear formatos de header por fase
@@ -227,9 +231,9 @@ class ReconciliationReporter:
             ws_res.write(fila_res, 1, conteos_fase.get(fase_key, 0), fmt_value)
             fila_res += 1
 
-        # Escribir las 5 hojas de fase
+        # Escribir las 7 hojas de fase (F1-F7)
         for fase_key, cfg in fase_config.items():
-            tab_name = fase_key  # "F1", "F2", etc. — nombre corto de pestaña
+            tab_name = fase_key  # "F1", "F2", … "F7" — nombre corto de pestaña
             ws_fase = workbook.add_worksheet(tab_name)
             _escribir_hoja_fase(ws_fase, cfg["fmt"], fase_key, cfg["nombre"])
 
@@ -288,7 +292,7 @@ class ReconciliationReporter:
         ws_log.autofilter(0, 0, fila - 1, len(headers_log) - 1)
 
         # ══════════════════════════════════════════════════════════
-        # HOJA 3 — PENDIENTES (todos los registros, streaming)
+        # HOJA PENDIENTES — todos los registros, streaming
         # ══════════════════════════════════════════════════════════
         ws_pend = workbook.add_worksheet("PENDIENTES")
         ws_pend.set_column("A:A", 10)  # ID_Tx

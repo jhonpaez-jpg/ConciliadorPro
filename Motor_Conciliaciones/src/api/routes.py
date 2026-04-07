@@ -122,7 +122,35 @@ def _procesar_en_background(temp_path: str, id_lote: int):
         total_c += f5
         print(f"✅ F5: {f5:,} conciliados por monto puro")
 
-        # ── 5. Reporte desde DB ───────────────────────────────────
+        # ── 5. F6 — Subset Sum global: N positivos cubren 1 negativo ────────
+        _escribir_estado({**_leer_estado(), "mensaje": "F6: Subset Sum global (N positivos → 1 negativo)..."})
+
+        filas_f6 = db.obtener_todos_pendientes(cuenta, id_lote)
+        print(f"   F6: {len(filas_f6):,} transacciones pendientes tras F1-F5")
+
+        if filas_f6:
+            txs_f6 = filas_a_transacciones(filas_f6)
+            del filas_f6; gc.collect()
+
+            engine_f6 = ReconciliationEngine()
+            grupos_f6 = engine_f6.ejecutar_f6_standalone(txs_f6)
+            del txs_f6, engine_f6; gc.collect()
+
+            if grupos_f6:
+                por_fase_f6 = defaultdict(list)
+                for entry in grupos_f6:
+                    por_fase_f6[entry["fase"]].append(entry["grupo"])
+                for fase_label, grupos in por_fase_f6.items():
+                    db.registrar_conciliacion_masiva(grupos, fase_origen=fase_label)
+                n_tx_f6 = sum(len(entry["grupo"]) for entry in grupos_f6)
+                total_c += n_tx_f6
+                print(f"✅ F6: {len(grupos_f6)} grupos, {n_tx_f6:,} transacciones conciliadas")
+            else:
+                print("   F6: sin grupos encontrados")
+        else:
+            del filas_f6
+
+        # ── 6. Reporte desde DB ───────────────────────────────────
         _escribir_estado({**_leer_estado(), "mensaje": "Generando reporte..."})
         ruta = reporter.generar_excel_desde_db(db, cuenta, id_lote)
 
@@ -588,7 +616,7 @@ async def stats_por_fase(cuenta: str = Query(...)):
         con.close()
 
         fases_resultado = {}
-        for fase_key in ["F1", "F2", "F3", "F4", "F5"]:
+        for fase_key in ["F1", "F2", "F3", "F4", "F5", "F6"]:
             n = next((r[1] for r in filas_fase if r[0] == fase_key), 0)
             fases_resultado[fase_key] = {
                 "conciliados":            n,

@@ -66,7 +66,7 @@ export default function Dropzone({ file, onFileSelect, onClear }: DropzoneProps)
       <p className="text-muted-foreground text-sm">
         <span className="font-semibold text-card-foreground">Haz clic para subir</span> o arrastra tu archivo Excel
       </p>
-      <p className="text-xs text-muted-foreground mt-2">Formatos: .xlsx, .xls, .csv (máx 20.000 registros)</p>
+      <p className="text-xs text-muted-foreground mt-2">Formatos: .xlsx, .xls (máx 20.000 registros)</p>
       <input
         ref={inputRef}
         type="file"
