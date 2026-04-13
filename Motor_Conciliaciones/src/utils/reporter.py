@@ -102,8 +102,9 @@ class ReconciliationReporter:
             ("Hoja F3 (Tolerancia ±5 cts)",""),
             ("Hoja F4 (Monto+Localidad)",  ""),
             ("Hoja F5 (Monto Puro Global)",""),
-            ("Hoja F6 (Subset Sum N→1)",   ""),
-            ("Hoja F7 (Subset Sum N neg→1 pos)", ""),
+            ("Hoja F6 (N positivos → 1 negativo)", ""),
+            ("Hoja F7 (1 positivo → N negativos)", ""),
+            ("Hoja F7b (Final Cleaning)",  ""),
             ("Hoja LOGRADO (todos + fase)",total_conci),
             ("Hoja PENDIENTES (registros)",total_pend),
         ]
@@ -124,7 +125,8 @@ class ReconciliationReporter:
             "F4": {"color": "#4a1d6e", "nombre": "F4 - Monto+Localidad (sin diario)",           "fmt": None},
             "F5": {"color": "#0f4c5c", "nombre": "F5 - Monto Puro Global",                      "fmt": None},
             "F6": {"color": "#7b2d00", "nombre": "F6 - Subset Sum (N positivos → 1 negativo)",  "fmt": None},
-            "F7": {"color": "#5a2d00", "nombre": "F7 - Subset Sum (N negativos → 1 positivo)",  "fmt": None},
+            "F7": {"color": "#5a2d00", "nombre": "F7 - Subset Sum (1 positivo → N negativos)",  "fmt": None},
+            "F7b":{"color": "#3d1f00", "nombre": "F7b - Final Cleaning (positivos restantes)",  "fmt": None},
         }
 
         # Crear formatos de header por fase
@@ -168,10 +170,10 @@ class ReconciliationReporter:
                     WHERE  t.cuenta_contable = ?
                       AND  t.id_lote = ?
                       AND  t.estado_tx = 'CONCILIADO'
-                      AND  c.fase_origen = ?
+                      AND  c.fase_origen IN (?, CASE WHEN ? = 'F6' THEN 'F6g' ELSE NULL END)
                     ORDER  BY ABS(t.id_conciliacion), t.id_transaccion
                     LIMIT  ? OFFSET ?
-                """, (cuenta, id_lote, fase_label, BATCH, offset))
+                """, (cuenta, id_lote, fase_label, fase_label, BATCH, offset))
                 rows = cursor.fetchall()
                 if not rows:
                     break
@@ -208,8 +210,9 @@ class ReconciliationReporter:
                 FROM   TRANSACCION t
                 JOIN   CONCILIACION c ON ABS(t.id_conciliacion) = c.id_conciliacion
                 WHERE  t.cuenta_contable = ? AND t.id_lote = ?
-                  AND  t.estado_tx = 'CONCILIADO' AND c.fase_origen = ?
-            """, (cuenta, id_lote, fase_key))
+                  AND  t.estado_tx = 'CONCILIADO'
+                  AND  c.fase_origen IN (?, CASE WHEN ? = 'F6' THEN 'F6g' ELSE NULL END)
+            """, (cuenta, id_lote, fase_key, fase_key))
             conteos_fase[fase_key] = cursor.fetchone()[0] or 0
 
         # Agregar conteos de fase al RESUMEN (ws_res ya existe)

@@ -11,6 +11,8 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    // Redirige todas las rutas a index.html para que React maneje la navegación
+    historyApiFallback: true,
     proxy: {
       "/api": {
         target: "http://localhost:8000",

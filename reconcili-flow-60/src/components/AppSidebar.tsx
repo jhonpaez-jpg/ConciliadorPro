@@ -1,6 +1,7 @@
 import {
   BarChart3, Zap, Layers, Cpu, Clock, Moon,
-  Play, History, Settings, FileOutput, PieChart
+  Play, History, Settings, FileOutput, PieChart,
+  GitMerge, Sparkles, CalendarClock
 } from "lucide-react";
 import { useApp, SectionId } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
@@ -16,15 +17,46 @@ const menuItems: MenuItem[] = [
   { id: "dashboard", label: "Dashboard", icon: PieChart, group: "PRINCIPAL" },
   { id: "ejecutar", label: "Ejecutar Conciliación", icon: Play, group: "PRINCIPAL" },
   { id: "historial", label: "Historial", icon: History, group: "PRINCIPAL" },
+  { id: "programadas", label: "Programadas", icon: CalendarClock, group: "PRINCIPAL" },
   { id: "fastpass", label: "Fast-Pass (F1)", icon: Zap, group: "CONCILIACIÓN" },
   { id: "subsetsum", label: "Subset Sum (F2)", icon: Layers, group: "CONCILIACIÓN" },
   { id: "tolerancia", label: "Tolerancia F3 (±5 cts)", icon: Clock, group: "CONCILIACIÓN" },
   { id: "localidad", label: "Localidad F4", icon: Moon, group: "CONCILIACIÓN" },
   { id: "montopuro", label: "Monto Puro F5", icon: Cpu, group: "CONCILIACIÓN" },
-  { id: "subset", label: "Monto Puro Subset F6", icon: Cpu, group: "CONCILIACIÓN" },
+  { id: "subset", label: "Neg. Grandes F6", icon: GitMerge, group: "CONCILIACIÓN" },
+  { id: "finalcleaning", label: "Limpieza Final (F7)", icon: Sparkles, group: "CONCILIACIÓN" },
   { id: "configuracion", label: "Ajustes", icon: Settings, group: "CONFIGURACIÓN" },
   { id: "reportes", label: "Reportes", icon: FileOutput, group: "CONFIGURACIÓN" },
 ];
+
+// Mapeo id → slug URL (mismo que AppContext)
+const SLUGS: Record<SectionId, string> = {
+  dashboard:     "/dashboard",
+  ejecutar:      "/ejecutar",
+  historial:     "/historial",
+  programadas:   "/programadas",
+  fastpass:      "/fases/fast-pass-f1",
+  subsetsum:     "/fases/subset-sum-f2",
+  tolerancia:    "/fases/tolerancia-f3",
+  localidad:     "/fases/localidad-f4",
+  montopuro:     "/fases/monto-puro-f5",
+  subset:        "/fases/subset-global-f6",
+  finalcleaning: "/fases/final-cleaning-f7",
+  profunda:      "/fases/avanzadas",
+  configuracion: "/configuracion",
+  reportes:      "/reportes",
+};
+
+// Dots de color por fase (igual que Index.html)
+const PHASE_DOTS: Partial<Record<SectionId, string>> = {
+  fastpass:      "#10b981",
+  subsetsum:     "#f59e0b",
+  tolerancia:    "#8b5cf6",
+  localidad:     "#3b82f6",
+  montopuro:     "#ef4444",
+  subset:        "#f97316",
+  finalcleaning: "#06b6d4",
+};
 
 export default function AppSidebar() {
   const { activeSection, setActiveSection } = useApp();
@@ -58,6 +90,7 @@ export default function AppSidebar() {
                   <button
                     key={item.id}
                     onClick={() => setActiveSection(item.id)}
+                    data-href={SLUGS[item.id]}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200",
                       isActive
@@ -70,6 +103,10 @@ export default function AppSidebar() {
                       isActive ? "text-primary" : "text-sidebar-muted"
                     )} />
                     <span>{item.label}</span>
+                    {PHASE_DOTS[item.id] && (
+                      <span className="phase-dot ml-auto"
+                            style={{ background: PHASE_DOTS[item.id] }} />
+                    )}
                   </button>
                 );
               })}

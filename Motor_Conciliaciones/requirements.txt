@@ -4,3 +4,7 @@ xlsx2csv
 openpyxl
 xlsxwriter
 fastapi
+uvicorn
+python-multipart
+reportlab
+pillow

@@ -1,34 +1,14 @@
 """
-Motor de Conciliación Contable — versión final v4 (optimizada)
+Motor de Conciliación Contable — versión final v5 (cobertura máxima)
 ==============================================================
 
-CORRECCIÓN CRÍTICA DE RENDIMIENTO (v3 → v4):
-
-  F7b timeout >20 minutos → resuelto en <1 segundo.
-
-  Causa raíz en v3:
-    F7b tenía un doble loop:
-      for neg in neg_rest:                     # ~39 negativos
-          for pos in pos_libres:               # ~780 positivos
-              _dp_exacto(monto_pos, neg_pool)  # DP por cada combinación
-    Complejidad: O(neg_rest × pos_libres × DP) = 30.420 llamadas DP.
-    Con timeout=8s por llamada → hasta 4.000 minutos teóricos.
-
-  Fix en v4:
-    Loop invertido — itera sobre POSITIVOS (no negativos):
-      for pos in pos_libres:              # ~780 positivos, UN solo DP cada uno
-          _elegir_dp(monto_pos, neg_pool) # cubre N negativos de una vez
-    Complejidad: O(pos_libres × DP) = 780 llamadas DP.
-    Tiempo real: <1 segundo (la mayoría termina en <0.01s con poda temprana).
-
-  Además: se añade poda temprana en F7b — si suma(neg_libres) < monto_pos,
-  se salta sin llamar al DP (evita el 95% de las llamadas).
-
-Historial de correcciones:
-  v1 — Engine original (71.08%)
-  v2 — Bugs 1-5 corregidos, F7 añadida (75.99% por falta de integración)
-  v3 — F7 integrada, F5 movida al final, F7b añadida (85.96%)
-  v4 — F7b optimizada de O(neg×pos×DP) → O(pos×DP) (target: ~99%)
+Mejoras v5 sobre v4:
+  - _MAX_CANDIDATOS_DP aumentado a 2000 (más cobertura en pools grandes)
+  - F6g ahora también itera negativos medianos (>500K, no solo >5M)
+  - F7 y F7b usan candidatos ampliados
+  - ejecutar_f6_standalone procesa primero por localidad (F1-F4 cruzado)
+    y luego el bloque global, maximizando la cobertura
+  - Poda temprana mejorada: verifica suma mínima de top-N candidatos
 
 Orden de fases:
   F1 → F2 → F3 → F4 → F6g → F7 → F7b → F5
@@ -57,13 +37,13 @@ except ImportError:
 # ──────────────────────────────────────────────────────────────────────────────
 
 UMBRAL_BACKTRACKING = 20
-_MAX_CANDIDATOS_DP  = 500
+_MAX_CANDIDATOS_DP  = 2_000     # aumentado de 500 → más cobertura
 _TIMEOUT_DP_SEG     = 8.0
 _ESCALA_GRANDE      = 10_000     # > 10M
 _ESCALA_MEDIANA     = 1_000      # 100K – 10M
 _UMBRAL_GRANDE      = 10_000_000
 _UMBRAL_MEDIANO     = 100_000    # exacto para < 100K (precisión centavo)
-_UMBRAL_NEG_GRANDE  = 5_000_000  # umbral F6g
+_UMBRAL_NEG_GRANDE  = 500_000    # F6g: negativos > 500K (antes era 5M)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -431,16 +411,12 @@ class ReconciliationEngine:
         ids_ya_usados: set[int],
     ) -> tuple[list[dict], list[dict], list[dict]]:
         """
-        F6g — negativos GRANDES (>5M): N positivos → 1 negativo.
-        F7  — 1 positivo → N negativos (patrón dominante).
-              Positivos ASC: los pequeños primero, dejan negativos grandes
-              disponibles para los positivos grandes.
-        F7b — Limpieza de negativos restantes tras F7.
-              [OPTIMIZACIÓN v4]: loop sobre POSITIVOS (no negativos).
-              Una sola llamada DP por positivo cubre múltiples negativos.
-              Poda temprana: si suma(neg_libres) < monto_pos → skip sin DP.
-              Complejidad: O(pos_libres) en vez de O(neg_rest × pos_libres).
-              Tiempo real: <1 segundo vs >20 minutos en v3.
+        F6g — negativos grandes (>500K): N positivos → 1 negativo.
+              Ordenados de mayor a menor para cubrir primero los más difíciles.
+        F7  — 1 positivo → N negativos.
+              Positivos ASC: los pequeños primero.
+        F7b — Limpieza final: positivos restantes → N negativos.
+              Loop sobre positivos con poda temprana.
         """
         if not transacciones:
             return [], [], []
@@ -461,42 +437,46 @@ class ReconciliationEngine:
         pos_pool = [(t.id_transaccion, t.monto_centavos) for t in positivos]
         neg_pool = [(t.id_transaccion, t.monto_centavos) for t in negativos]
 
-        # ── F6g ──────────────────────────────────────────────────────────────
+        # ── F6g: N positivos → 1 negativo (negativos grandes primero) ────────
         grupos_f6g: list[dict] = []
-        neg_grandes = sorted(
+        # Ordenar negativos DESC por valor absoluto (los más grandes primero)
+        neg_ordenados = sorted(
             [(id_n, m) for id_n, m in neg_pool if abs(m) > _UMBRAL_NEG_GRANDE],
             key=lambda x: abs(x[1]),
+            reverse=True,
         )
-        for id_neg, monto_neg in neg_grandes:
+        for id_neg, monto_neg in neg_ordenados:
             if id_neg in usados:
                 continue
             cands = _cands_desc(pos_pool, usados, _MAX_CANDIDATOS_DP)
             if not cands:
                 break
+            # Poda: si la suma de todos los positivos disponibles < objetivo → skip
+            if sum(m for _, m in cands) < abs(monto_neg):
+                continue
             match = _elegir_dp(abs(monto_neg), cands)
             if match is None:
                 continue
             ids_m = {id_t for id_t, _ in match}
             grupos_f6g.append({
-                "fase": "F6g",
+                "fase": "F6",
                 "grupo": [idx_all[id_neg]] + [idx_all[i] for i in ids_m],
             })
             usados.add(id_neg)
             usados.update(ids_m)
 
-        # ── F7 ───────────────────────────────────────────────────────────────
+        # ── F7: 1 positivo → N negativos (positivos ASC) ─────────────────────
         grupos_f7: list[dict] = []
         pos_asc = sorted(pos_pool, key=lambda x: x[1])
+        neg_abs_pool = [(id_n, abs(m)) for id_n, m in neg_pool]
         for id_pos, monto_pos in pos_asc:
             if id_pos in usados:
                 continue
-            cands = _cands_desc(
-                [(id_n, abs(m)) for id_n, m in neg_pool],
-                usados,
-                _MAX_CANDIDATOS_DP,
-            )
+            cands = _cands_desc(neg_abs_pool, usados, _MAX_CANDIDATOS_DP)
             if not cands:
                 break
+            if sum(m for _, m in cands) < monto_pos:
+                continue
             match = _elegir_dp(monto_pos, cands)
             if match is None:
                 continue
@@ -508,21 +488,14 @@ class ReconciliationEngine:
             usados.add(id_pos)
             usados.update(ids_m)
 
-        # ── F7b ──────────────────────────────────────────────────────────────
-        # OPTIMIZACIÓN v4: itera sobre positivos (no negativos).
-        # Para cada positivo libre, intenta cubrir el máximo de negativos
-        # libres con una sola llamada DP. Poda temprana evita el 95% de DPs.
+        # ── F7b: positivos restantes → N negativos ────────────────────────────
         grupos_f7b: list[dict] = []
 
-        # Precalcular lista de negativos libres una vez, ordenada DESC
-        # (se actualiza al marcar usados dentro del loop)
         neg_libres_desc = sorted(
             [(id_n, abs(m)) for id_n, m in neg_pool if id_n not in usados],
             key=lambda x: x[1],
             reverse=True,
         )
-
-        # Positivos libres ASC (los más pequeños primero: más rápidos de resolver)
         pos_libres_asc = sorted(
             [(id_p, m) for id_p, m in pos_pool if id_p not in usados],
             key=lambda x: x[1],
@@ -531,22 +504,15 @@ class ReconciliationEngine:
         for id_pos, monto_pos in pos_libres_asc:
             if id_pos in usados:
                 continue
-
-            # Filtrar negativos aún libres (O(n) filter, no re-sort)
             neg_cands = [(i, m) for i, m in neg_libres_desc if i not in usados]
             if not neg_cands:
                 break
-
-            # PODA TEMPRANA: si la suma de todos los negativos libres
-            # es menor que el objetivo, no existe solución → skip sin DP
             suma_neg = sum(m for _, m in neg_cands)
             if suma_neg < monto_pos:
-                continue  # no llamar al DP — imposible matemáticamente
-
+                continue
             match = _elegir_dp(monto_pos, neg_cands[:_MAX_CANDIDATOS_DP])
             if match is None:
                 continue
-
             ids_m = {id_t for id_t, _ in match}
             grupos_f7b.append({
                 "fase": "F7b",
@@ -565,7 +531,7 @@ class ReconciliationEngine:
             + sum(1 for g in grupos_f7b for t in g["grupo"] if t.monto_centavos < 0)
         )
         print(f"      Bloque global → "
-              f"F6g: {len(grupos_f6g)} grp/{n6g} tx | "
+              f"F6: {len(grupos_f6g)} grp/{n6g} tx | "
               f"F7: {len(grupos_f7)} grp/{n7} tx | "
               f"F7b: {len(grupos_f7b)} grp/{n7b} tx | "
               f"neg cubiertos: {neg_cubiertos}/{len(neg_pool)}")

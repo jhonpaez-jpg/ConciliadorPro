@@ -3,12 +3,28 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from src.api.routes import router
+from src.api.report_routes import report_router
 from src.data.db_manager import DatabaseManager
 
 # 1. Inicializar base de datos al arrancar
 db = DatabaseManager("conciliacion.db")
 db.inicializar_tablas()
 print("✅ Base de datos inicializada correctamente.")
+
+# Activar WAL mode para soportar acceso concurrente desde múltiples hilos
+import sqlite3 as _sq3
+_con = _sq3.connect("conciliacion.db", timeout=30)
+_con.execute("PRAGMA journal_mode=WAL")
+_con.execute("PRAGMA busy_timeout=30000")
+_con.execute("PRAGMA synchronous=NORMAL")  # más rápido con WAL
+_con.commit()
+_con.close()
+print("✅ SQLite WAL mode activado.")
+
+# Arrancar scheduler de ejecuciones programadas
+from src.api.routes import _scheduler_tick
+_scheduler_tick()
+print("✅ Scheduler de ejecuciones programadas iniciado.")
 
 # 2. Definición única de la aplicación
 app = FastAPI(
@@ -33,6 +49,7 @@ os.makedirs(REPORT_DIR, exist_ok=True)
 
 # 5. Inclusión de rutas del motor
 app.include_router(router)
+app.include_router(report_router)
 
 # 6. Endpoint de salud
 @app.get("/", tags=["General"])

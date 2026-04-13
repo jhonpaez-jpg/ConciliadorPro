@@ -4,15 +4,18 @@ import { useReconciliation } from "@/context/ReconciliationContext";
 
 export default function MonthlyNav() {
   const { currentMonthIndex, currentYear, nextMonth, prevMonth, isCurrentMonth } = useApp();
-  const { history } = useReconciliation();
-  const ultimo = history[0] ?? null;
-  const total = ultimo?.total ?? 0;
-  const conciliados = ultimo?.conciliados ?? 0;
+  const { history, getHistoryByMonth } = useReconciliation();
+
+  // Usar datos del mes seleccionado, no siempre el último
+  const historialMes = getHistoryByMonth(currentMonthIndex, currentYear);
+  const entrada = historialMes[0] ?? null;
+  const total = entrada?.total ?? 0;
+  const conciliados = entrada?.conciliados ?? 0;
   const efectividad = total > 0 ? ((conciliados / total) * 100).toFixed(0) + "%" : "—";
   const fechaHoy = new Date().toLocaleDateString("es-CO");
 
   return (
-    <header className="bg-header-bg px-8 py-4 flex justify-between items-center flex-shrink-0 border-b border-sidebar-border">
+    <header className="monthly-nav px-8 py-4 flex justify-between items-center flex-shrink-0 border-b border-white/10">
       <div className="flex items-center gap-5 bg-sidebar-border/30 px-4 py-2 rounded-full">
         <button onClick={prevMonth} className="w-9 h-9 rounded-full flex items-center justify-center text-sidebar-muted hover:bg-sidebar-border/50 hover:text-sidebar-fg transition-colors">
           <ChevronLeft className="w-5 h-5" />

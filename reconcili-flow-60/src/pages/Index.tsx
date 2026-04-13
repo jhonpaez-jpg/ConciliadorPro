@@ -4,11 +4,15 @@ import AppSidebar from "@/components/AppSidebar";
 import MonthlyNav from "@/components/MonthlyNav";
 import FloatingIcons from "@/components/FloatingIcons";
 import ChatBot from "@/components/ChatBot";
+import Breadcrumb from "@/components/Breadcrumb";
+import LinkPreview from "@/components/LinkPreview";
 import DashboardSection from "@/sections/DashboardSection";
 import EjecutarSection from "@/sections/EjecutarSection";
 import HistorialSection from "@/sections/HistorialSection";
+import ProgramadasSection from "@/sections/ProgramadasSection";
 import FastPassSection from "@/sections/FastPassSection";
 import SubsetSumSection from "@/sections/SubsetSumSection";
+import FinalCleaningSection from "@/sections/FinalCleaningSection";
 import ToleranciaSection from "@/sections/ToleranciaSection";
 import LocalidadSection from "@/sections/LocalidadSection";
 import MontoPuroSection from "@/sections/MontoPuroSection";
@@ -24,6 +28,7 @@ function SectionRouter() {
     dashboard: <DashboardSection />,
     ejecutar: <EjecutarSection />,
     historial: <HistorialSection />,
+    programadas: <ProgramadasSection />,
     fastpass: <FastPassSection />,
     subsetsum: <SubsetSumSection />,
     tolerancia: <ToleranciaSection />,
@@ -31,6 +36,7 @@ function SectionRouter() {
     montopuro: <MontoPuroSection />,
     subset: <SubsetSection />,
     profunda: <ProfundaSection />,
+    finalcleaning: <FinalCleaningSection />,
     configuracion: <ConfiguracionSection />,
     reportes: <ReportesSection />,
   };
@@ -46,12 +52,14 @@ function AppLayout() {
         <MonthlyNav />
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <AppSidebar />
-          <main className="flex-1 bg-background p-8 overflow-y-auto custom-scrollbar">
+          <main className="flex-1 p-8 overflow-y-auto custom-scrollbar" style={{ background: "#f8fafd" }}>
+            <Breadcrumb />
             <SectionRouter />
           </main>
         </div>
       </div>
       <ChatBot />
+      <LinkPreview />
     </div>
   );
 }

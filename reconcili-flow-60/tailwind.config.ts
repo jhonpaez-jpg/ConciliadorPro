@@ -67,11 +67,27 @@ export default {
         },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 4px)",
-        sm: "calc(var(--radius) - 8px)",
-        xl: "calc(var(--radius) + 8px)",
-        "2xl": "calc(var(--radius) + 16px)",
+        sm:    "8px",
+        md:    "12px",
+        lg:    "16px",
+        xl:    "20px",
+        "2xl": "24px",
+        "3xl": "32px",
+        pill:  "40px",
+        DEFAULT: "var(--radius)",
+      },
+      fontFamily: {
+        sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+      },
+      fontSize: {
+        "2xs": "11px",
+        xs:    "12px",
+        sm:    "13px",
+        base:  "14px",
+        md:    "15px",
+        lg:    "16px",
+        xl:    "18px",
+        "2xl": "20px",
       },
       keyframes: {
         "accordion-down": {

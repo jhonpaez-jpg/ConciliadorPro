@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Database, CheckCircle, Clock as ClockIcon, Hourglass, Zap, Layers, Cpu, Moon, Play, Upload, Download, Loader2, FileSpreadsheet, Calendar, Eye, EyeOff } from "lucide-react";
+import { ExcelIcon, PdfIcon } from "@/components/FileIcons";
 import StatCard from "@/components/StatCard";
 import PhaseBadge from "@/components/PhaseBadge";
 import ChartSection from "@/components/ChartSection";
@@ -10,37 +11,41 @@ import { useReconciliation } from "@/context/ReconciliationContext";
 
 export default function DashboardSection() {
   const { currentMonthIndex, currentYear, setActiveSection } = useApp();
-  const { state, result, errorMessage, history, reset, downloadReport, getHistoryByMonth } = useReconciliation();
+  const { state, result, errorMessage, history, reset, downloadReport, downloadReportPdf, getHistoryByMonth } = useReconciliation();
 
   const [vistaDetalle, setVistaDetalle] = useState<{ estado: "CONCILIADO" | "PENDIENTE"; cuenta: string } | null>(null);
 
   const historialMes = getHistoryByMonth(currentMonthIndex, currentYear);
   const ultimoDelMes = historialMes[0] ?? null;
-  const esMesActual = result?.mes === currentMonthIndex && result?.anio === currentYear;
-  const dataMes: any = esMesActual ? result : ultimoDelMes ?? result ?? history[0] ?? null;
-  const esDatoDelMes = esMesActual || !!ultimoDelMes;
+  // Fuente de verdad: historial del mes seleccionado > result actual > último historial
+  const dataMes: any = ultimoDelMes
+    ?? (result?.mes === currentMonthIndex && result?.anio === currentYear ? result : null)
+    ?? history[0]
+    ?? null;
+  const esDatoDelMes = !!ultimoDelMes || (result?.mes === currentMonthIndex && result?.anio === currentYear);
 
   const totalRegistros = dataMes?.total_leido ?? dataMes?.total ?? 0;
-  const conciliados = dataMes?.conciliados ?? 0;
-  const pendientes = dataMes?.pendientes ?? 0;
-  const cuenta = dataMes?.cuenta_procesada ?? dataMes?.cuenta ?? "—";
-  const tasa = dataMes?.tasa_conciliacion ?? dataMes?.tasa ?? 0;
-  const efectividad = tasa > 0 ? tasa.toFixed(1) : totalRegistros > 0 ? ((conciliados / totalRegistros) * 100).toFixed(1) : "0";
-  const hasData = totalRegistros > 0;
-  const mesLabel = `${getMonthName(currentMonthIndex)} ${currentYear}`;
-
-  if (vistaDetalle) {
-    return (
-      <TransaccionesTable
-        estado={vistaDetalle.estado}
-        cuenta={vistaDetalle.cuenta}
-        onClose={() => setVistaDetalle(null)}
-      />
-    );
-  }
+  const conciliados    = dataMes?.conciliados ?? 0;
+  const pendientes     = dataMes?.pendientes  ?? 0;
+  const cuenta         = dataMes?.cuenta_procesada ?? dataMes?.cuenta ?? "—";
+  const tasa           = dataMes?.tasa_conciliacion ?? dataMes?.tasa ?? 0;
+  const efectividad    = tasa > 0 ? tasa.toFixed(1) : totalRegistros > 0 ? ((conciliados / totalRegistros) * 100).toFixed(1) : "0";
+  const hasData        = totalRegistros > 0;
+  const mesLabel       = `${getMonthName(currentMonthIndex)} ${currentYear}`;
 
   return (
     <div className="space-y-8">
+
+      {/* Tabla de detalle — reemplaza la vista al abrirse */}
+      {vistaDetalle && (
+        <TransaccionesTable
+          estado={vistaDetalle.estado}
+          cuenta={vistaDetalle.cuenta}
+          onClose={() => setVistaDetalle(null)}
+        />
+      )}
+
+      {!vistaDetalle && (<>
       {/* Phase badges */}
       <div className="flex gap-3 flex-wrap">
         <PhaseBadge phase="F0" label="F0: Normalización" icon={<Loader2 className="w-3.5 h-3.5" />} variant="f0" />
@@ -49,6 +54,9 @@ export default function DashboardSection() {
         <PhaseBadge phase="F3" label="F3: Tolerancia" icon={<ClockIcon className="w-3.5 h-3.5" />} variant="f3" />
         <PhaseBadge phase="F4" label="F4: Localidad" icon={<Moon className="w-3.5 h-3.5" />} variant="f4" />
         <PhaseBadge phase="F5" label="F5: Monto Puro" icon={<Cpu className="w-3.5 h-3.5" />} variant="f4" />
+        <PhaseBadge phase="F6" label="F6: Subset Global" icon={<Layers className="w-3.5 h-3.5" />} variant="f2" />
+        <PhaseBadge phase="F7" label="F7: Final Cleaning" icon={<Zap className="w-3.5 h-3.5" />} variant="f1" />
+        <PhaseBadge phase="F7b" label="F7b: Limpieza Final" icon={<Zap className="w-3.5 h-3.5" />} variant="f1" />
       </div>
 
       {/* Error alert */}
@@ -71,10 +79,10 @@ export default function DashboardSection() {
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-        <StatCard title="Total Registros" value={hasData ? totalRegistros.toLocaleString() : "—"} trend={hasData ? `Cuenta: ${cuenta}` : "Sin datos aún"} icon={Database} />
-        <StatCard title="Conciliados" value={hasData ? conciliados.toLocaleString() : "—"} trend={hasData ? `${efectividad}% del total` : "Ejecuta una conciliación"} icon={CheckCircle} />
-        <StatCard title="Pendientes" value={hasData ? pendientes.toLocaleString() : "—"} trend={hasData ? "Requieren revisión manual" : "—"} icon={Hourglass} />
-        <StatCard title="Efectividad" value={hasData ? `${efectividad}%` : "—"} trend={hasData ? `${conciliados.toLocaleString()} de ${totalRegistros.toLocaleString()}` : "—"} icon={ClockIcon} />
+        <StatCard title="Total Registros"  value={hasData ? totalRegistros.toLocaleString() : "—"} trend={hasData ? `Cuenta: ${cuenta}` : "Sin datos aún"} icon={Database} />
+        <StatCard title="Conciliados"      value={hasData ? conciliados.toLocaleString() : "—"}    trend={hasData ? `${efectividad}% del total` : "Ejecuta una conciliación"} icon={CheckCircle} />
+        <StatCard title="Pendientes"       value={hasData ? pendientes.toLocaleString() : "—"}     trend={hasData ? "Requieren revisión manual" : "—"} icon={Hourglass} />
+        <StatCard title="Efectividad"      value={hasData ? `${efectividad}%` : "—"}               trend={hasData ? `${conciliados.toLocaleString()} de ${totalRegistros.toLocaleString()}` : "—"} icon={ClockIcon} />
       </div>
 
       {/* Chart */}
@@ -154,7 +162,7 @@ export default function DashboardSection() {
         </div>
       </div>
 
-      {/* Empty state — solo si no hay NINGÚN historial */}
+      {/* Empty state */}
       {!hasData && history.length === 0 && (
         <div className="bg-card rounded-2xl p-12 shadow-card text-center">
           <FileSpreadsheet className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
@@ -171,7 +179,7 @@ export default function DashboardSection() {
         </div>
       )}
 
-      {/* Hint cuando hay historial pero no del mes seleccionado */}
+      {/* Sin datos del mes seleccionado */}
       {history.length > 0 && !hasData && historialMes.length === 0 && (
         <div className="bg-card rounded-2xl p-6 shadow-card text-center">
           <p className="text-muted-foreground text-sm">
@@ -183,7 +191,7 @@ export default function DashboardSection() {
         </div>
       )}
 
-      {/* Recent history for this month */}
+      {/* Ejecuciones recientes del mes */}
       {historialMes.length > 0 && (
         <div className="bg-card rounded-2xl p-6 shadow-card">
           <h3 className="text-base font-semibold text-card-foreground mb-4">Ejecuciones de {mesLabel}</h3>
@@ -210,18 +218,29 @@ export default function DashboardSection() {
                   </div>
                 </div>
                 {h.ruta_reporte && (
-                  <button
-                    onClick={() => downloadReport(h.ruta_reporte)}
-                    className="px-3 py-1 rounded-full text-xs bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex gap-1.5 shrink-0">
+                    <button
+                      onClick={() => downloadReport(h.ruta_reporte)}
+                      title="Descargar Excel"
+                      className="w-8 h-8 rounded-full flex items-center justify-center bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      <ExcelIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => downloadReportPdf(h.ruta_reporte)}
+                      title="Descargar PDF"
+                      className="w-8 h-8 rounded-full flex items-center justify-center bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                    >
+                      <PdfIcon className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }
