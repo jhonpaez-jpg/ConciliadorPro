@@ -1,6 +1,14 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  ReactNode,
+} from "react";
 import axios from "axios";
 import { toast } from "@/hooks/use-toast";
+import { sendNotification } from "@/hooks/useNotifications";
 
 const API_BASE = "/api";
 
@@ -12,7 +20,10 @@ export interface ReconciliationConfig {
 }
 
 const DEFAULT_CONFIG: ReconciliationConfig = {
-  f2Timeout: 2, f3Timeout: 10, f4Timeout: 30, maxDepth: 5,
+  f2Timeout: 2,
+  f3Timeout: 10,
+  f4Timeout: 30,
+  maxDepth: 5,
 };
 
 const CONFIG_KEY = "conciliador_config_v1";
@@ -21,11 +32,15 @@ function loadConfig(): ReconciliationConfig {
   try {
     const raw = localStorage.getItem(CONFIG_KEY);
     return raw ? { ...DEFAULT_CONFIG, ...JSON.parse(raw) } : DEFAULT_CONFIG;
-  } catch { return DEFAULT_CONFIG; }
+  } catch {
+    return DEFAULT_CONFIG;
+  }
 }
 
 function saveConfig(c: ReconciliationConfig) {
-  try { localStorage.setItem(CONFIG_KEY, JSON.stringify(c)); } catch {}
+  try {
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(c));
+  } catch {}
 }
 
 export interface ReconciliationResult {
@@ -65,6 +80,7 @@ export interface HistoryEntry {
   anio?: number;
   tasa?: number;
   id_lote?: number;
+  estado?: "COMPLETADO" | "CANCELADO" | "ERROR";
 }
 
 export type ProcessState = "idle" | "processing" | "success" | "error";
@@ -79,25 +95,33 @@ function parsePeriodo(periodo?: string): { mes: number; anio: number } | null {
   return m ? { mes: parseInt(m[2]) - 1, anio: parseInt(m[1]) } : null;
 }
 
-async function pollEstado(onProgress: (msg: string) => void, signal: { cancelled: boolean }): Promise<any> {
+async function pollEstado(
+  onProgress: (msg: string) => void,
+  signal: { cancelled: boolean },
+): Promise<any> {
   const MAX_WAIT = 3_600_000;
   const start = Date.now();
   while (Date.now() - start < MAX_WAIT) {
     if (signal.cancelled) throw new Error("CANCELLED");
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise((r) => setTimeout(r, 5000));
     if (signal.cancelled) throw new Error("CANCELLED");
     try {
-      const { data } = await axios.get(`${API_BASE}/estado/`, { timeout: 15_000 });
+      const { data } = await axios.get(`${API_BASE}/estado/`, {
+        timeout: 15_000,
+      });
       onProgress(data.mensaje || "Procesando...");
       if (data.fase === "listo") return data;
       if (data.fase === "cancelado") throw new Error("CANCELLED");
-      if (data.fase === "error") throw new Error(data.mensaje || "Error en servidor");
+      if (data.fase === "error")
+        throw new Error(data.mensaje || "Error en servidor");
     } catch (e: any) {
       if (e.message === "CANCELLED") throw e;
       if (e.message?.includes("Error en servidor")) throw e;
     }
   }
-  throw new Error("Tiempo máximo de espera excedido. Recarga la página para ver los resultados.");
+  throw new Error(
+    "Tiempo máximo de espera excedido. Recarga la página para ver los resultados.",
+  );
 }
 
 interface ReconciliationContextType {
@@ -111,8 +135,16 @@ interface ReconciliationContextType {
   config: ReconciliationConfig;
   setFile: (file: File | null) => void;
   setConfig: (c: ReconciliationConfig) => void;
-  uploadAndReconcile: (file: File, config?: ReconciliationConfig) => Promise<void>;
-  scheduleReconciliation: (file: File, fecha: string, hora: string, config?: ReconciliationConfig) => Promise<void>;
+  uploadAndReconcile: (
+    file: File,
+    config?: ReconciliationConfig,
+  ) => Promise<void>;
+  scheduleReconciliation: (
+    file: File,
+    fecha: string,
+    hora: string,
+    config?: ReconciliationConfig,
+  ) => Promise<void>;
   cancelScheduled: (id: number) => Promise<void>;
   cancelReconciliation: () => Promise<void>;
   downloadReport: (rutaReporte: string) => Promise<void>;
@@ -122,11 +154,16 @@ interface ReconciliationContextType {
   refreshHistorial: () => Promise<void>;
 }
 
-const ReconciliationContext = createContext<ReconciliationContextType | null>(null);
+const ReconciliationContext = createContext<ReconciliationContextType | null>(
+  null,
+);
 
 export const useReconciliation = () => {
   const ctx = useContext(ReconciliationContext);
-  if (!ctx) throw new Error("useReconciliation must be used within ReconciliationProvider");
+  if (!ctx)
+    throw new Error(
+      "useReconciliation must be used within ReconciliationProvider",
+    );
   return ctx;
 };
 
@@ -150,39 +187,50 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
   // Fuente de verdad: siempre el backend
   const fetchHistorialFromBackend = async () => {
     try {
-      const { data } = await axios.get(`${API_BASE}/historial/`, { timeout: 10_000 });
-      const entries: HistoryEntry[] = (data.historial ?? []).map((item: any) => ({
-        id:           item.id,
-        date:         item.fecha || "",
-        cuenta:       item.cuenta,
-        total:        item.total,
-        conciliados:  item.conciliados,
-        pendientes:   item.pendientes,
-        efectividad:  item.efectividad,
-        tasa:         item.tasa,
-        ruta_reporte: item.ruta_reporte,
-        periodo:      item.periodo,
-        mes:          item.mes,
-        anio:         item.anio,
-        id_lote:      item.id_lote,
-      }));
+      const { data } = await axios.get(`${API_BASE}/historial/`, {
+        timeout: 10_000,
+      });
+      const entries: HistoryEntry[] = (data.historial ?? []).map(
+        (item: any) => ({
+          id: item.id,
+          date: item.fecha || "",
+          cuenta: item.cuenta,
+          total: item.total,
+          conciliados: item.conciliados,
+          pendientes: item.pendientes,
+          efectividad: item.efectividad,
+          tasa: item.tasa,
+          ruta_reporte: item.ruta_reporte,
+          periodo: item.periodo,
+          mes: item.mes,
+          anio: item.anio,
+          id_lote: item.id_lote,
+          estado: item.estado ?? "COMPLETADO",
+        }),
+      );
       setHistory(entries);
     } catch {
       // Backend no disponible — mantener estado actual
     }
   };
 
-  // Cargar historial al montar
+  // Cargar historial al montar + polling de programadas cada 10s para detectar cambios de estado
   useEffect(() => {
     fetchHistorialFromBackend();
     fetchScheduledFromBackend();
     // Verificar si hay un proceso activo en el backend al recargar
     _checkActiveProcess();
+
+    // Polling de programadas para detectar transiciones PENDIENTE→EJECUTANDO→COMPLETADO/ERROR
+    const pollId = setInterval(() => fetchScheduledFromBackend(), 10_000);
+    return () => clearInterval(pollId);
   }, []);
 
   const _checkActiveProcess = async () => {
     try {
-      const { data } = await axios.get(`${API_BASE}/estado/`, { timeout: 5_000 });
+      const { data } = await axios.get(`${API_BASE}/estado/`, {
+        timeout: 5_000,
+      });
       const faseActiva = ["cargando", "procesando", "iniciando"];
       if (faseActiva.includes(data.fase)) {
         // Hay un proceso corriendo — retomar el polling
@@ -194,18 +242,20 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
           .then((result) => {
             const periodoInfo = parsePeriodo(result.periodo);
             const total = (result.conciliados ?? 0) + (result.pendientes ?? 0);
-            const tasa  = result.tasa ?? (total > 0 ? ((result.conciliados ?? 0) / total) * 100 : 0);
+            const tasa =
+              result.tasa ??
+              (total > 0 ? ((result.conciliados ?? 0) / total) * 100 : 0);
             setResult({
-              status:            "success",
-              cuenta_procesada:  result.cuenta ?? "—",
-              total_leido:       total,
-              conciliados:       result.conciliados ?? 0,
-              pendientes:        result.pendientes  ?? 0,
+              status: "success",
+              cuenta_procesada: result.cuenta ?? "—",
+              total_leido: total,
+              conciliados: result.conciliados ?? 0,
+              pendientes: result.pendientes ?? 0,
               tasa_conciliacion: tasa,
-              ruta_reporte:      result.reporte ?? "",
-              periodo:           result.periodo,
-              mes:               periodoInfo?.mes,
-              anio:              periodoInfo?.anio,
+              ruta_reporte: result.reporte ?? "",
+              periodo: result.periodo,
+              mes: periodoInfo?.mes,
+              anio: periodoInfo?.anio,
             });
             setState("success");
             setProgressMessage("");
@@ -221,20 +271,71 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
             setProgressMessage("");
           });
       }
-    } catch { /* backend no disponible */ }
+    } catch {
+      /* backend no disponible */
+    }
   };
+
+  // Ref para detectar cambios de estado en programadas y notificar
+  const prevScheduledRef = useRef<ScheduledEntry[]>([]);
 
   const fetchScheduledFromBackend = async () => {
     try {
-      const { data } = await axios.get(`${API_BASE}/programadas/`, { timeout: 5_000 });
-      setScheduled(data.programadas ?? []);
-    } catch { /* ignorar */ }
+      const { data } = await axios.get(`${API_BASE}/programadas/`, {
+        timeout: 5_000,
+      });
+      const nuevas: ScheduledEntry[] = data.programadas ?? [];
+
+      // Detectar transiciones de estado para notificar
+      const prev = prevScheduledRef.current;
+      for (const nueva of nuevas) {
+        const anterior = prev.find((p) => p.id === nueva.id);
+        if (!anterior) continue;
+
+        // PENDIENTE → EJECUTANDO: notificar inicio
+        if (anterior.estado === "PENDIENTE" && nueva.estado === "EJECUTANDO") {
+          sendNotification(
+            "⚙️ Conciliación programada iniciada",
+            `Procesando: ${nueva.archivo}`,
+            `programada-inicio-${nueva.id}`,
+          );
+        }
+
+        // EJECUTANDO → COMPLETADO: notificar fin exitoso
+        if (anterior.estado === "EJECUTANDO" && nueva.estado === "COMPLETADO") {
+          sendNotification(
+            "✅ Conciliación programada completada",
+            `Archivo procesado: ${nueva.archivo}`,
+            `programada-fin-${nueva.id}`,
+          );
+          // Refrescar historial para que aparezca la nueva entrada
+          fetchHistorialFromBackend();
+        }
+
+        // EJECUTANDO → ERROR: notificar error
+        if (anterior.estado === "EJECUTANDO" && nueva.estado === "ERROR") {
+          sendNotification(
+            "❌ Error en conciliación programada",
+            `Falló el procesamiento de: ${nueva.archivo}`,
+            `programada-error-${nueva.id}`,
+          );
+        }
+      }
+
+      prevScheduledRef.current = nuevas;
+      setScheduled(nuevas);
+    } catch {
+      /* ignorar */
+    }
   };
 
   const getHistoryByMonth = (mes: number, anio: number) =>
-    history.filter(h => h.mes === mes && h.anio === anio);
+    history.filter((h) => h.mes === mes && h.anio === anio);
 
-  const uploadAndReconcile = async (fileToUpload: File, config?: ReconciliationConfig) => {
+  const uploadAndReconcile = async (
+    fileToUpload: File,
+    config?: ReconciliationConfig,
+  ) => {
     setState("processing");
     setResult(null);
     setErrorMessage(null);
@@ -248,34 +349,42 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
           f2_timeout: String(clamp(config.f2Timeout, 1, 10)),
           f3_timeout: String(clamp(config.f3Timeout, 5, 30)),
           f4_timeout: String(clamp(config.f4Timeout, 15, 120)),
-          max_depth:  String(clamp(config.maxDepth, 2, 10)),
+          max_depth: String(clamp(config.maxDepth, 2, 10)),
         })
       : new URLSearchParams();
 
     try {
-      await axios.post(`${API_BASE}/upload-and-reconcile/?${params}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        timeout: 30_000,
-      });
+      await axios.post(
+        `${API_BASE}/upload-and-reconcile/?${params}`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 30_000,
+        },
+      );
 
       setProgressMessage("Procesando...");
-      const data = await pollEstado((msg) => setProgressMessage(msg), cancelSignal);
+      const data = await pollEstado(
+        (msg) => setProgressMessage(msg),
+        cancelSignal,
+      );
 
       const periodoInfo = parsePeriodo(data.periodo);
       const total = (data.conciliados ?? 0) + (data.pendientes ?? 0);
-      const tasa  = data.tasa ?? (total > 0 ? ((data.conciliados ?? 0) / total) * 100 : 0);
+      const tasa =
+        data.tasa ?? (total > 0 ? ((data.conciliados ?? 0) / total) * 100 : 0);
 
       const mapped: ReconciliationResult = {
-        status:           "success",
+        status: "success",
         cuenta_procesada: data.cuenta ?? "—",
-        total_leido:      total,
-        conciliados:      data.conciliados ?? 0,
-        pendientes:       data.pendientes  ?? 0,
+        total_leido: total,
+        conciliados: data.conciliados ?? 0,
+        pendientes: data.pendientes ?? 0,
         tasa_conciliacion: tasa,
-        ruta_reporte:     data.reporte ?? "",
-        periodo:          data.periodo,
-        mes:              periodoInfo?.mes,
-        anio:             periodoInfo?.anio,
+        ruta_reporte: data.reporte ?? "",
+        periodo: data.periodo,
+        mes: periodoInfo?.mes,
+        anio: periodoInfo?.anio,
       };
 
       setResult(mapped);
@@ -287,9 +396,15 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
         description: `Cuenta ${mapped.cuenta_procesada}: ${mapped.conciliados} conciliados de ${total}`,
       });
 
+      // Notificación cuando termina
+      sendNotification(
+        "✅ Conciliación completada",
+        `Cuenta ${mapped.cuenta_procesada}: ${mapped.conciliados.toLocaleString()} conciliados (${tasa.toFixed(1)}%)`,
+        "conciliacion-completa",
+      );
+
       // Refrescar historial desde el backend (ya incluye la nueva ejecución)
       await fetchHistorialFromBackend();
-
     } catch (error: any) {
       setState("error");
       // Si fue cancelación, no mostrar como error
@@ -323,11 +438,12 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
     const formData = new FormData();
     formData.append("file", fileToSchedule);
     const params = new URLSearchParams({
-      hora, fecha,
+      hora,
+      fecha,
       f2_timeout: String(c.f2Timeout),
       f3_timeout: String(c.f3Timeout),
       f4_timeout: String(c.f4Timeout),
-      max_depth:  String(c.maxDepth),
+      max_depth: String(c.maxDepth),
     });
     await axios.post(`${API_BASE}/programar/?${params}`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
@@ -338,13 +454,22 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
       title: "✅ Ejecución programada",
       description: `El archivo se procesará el ${fecha} a las ${hora}`,
     });
+    // Notificación cuando inicia la programada (se enviará desde el scheduler)
+    sendNotification(
+      "📅 Ejecución programada",
+      `El archivo se procesará el ${fecha} a las ${hora}`,
+      "programada-creada",
+    );
   };
 
   const cancelScheduled = async (id: number) => {
     try {
       await axios.delete(`${API_BASE}/programadas/${id}`);
       await fetchScheduledFromBackend();
-      toast({ title: "Ejecución cancelada", description: "La ejecución programada fue cancelada." });
+      toast({
+        title: "Ejecución cancelada",
+        description: "La ejecución programada fue cancelada.",
+      });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     }
@@ -352,7 +477,9 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
 
   const cancelReconciliation = async () => {
     cancelSignal.cancelled = true;
-    try { await axios.post(`${API_BASE}/cancelar/`); } catch {}
+    try {
+      await axios.post(`${API_BASE}/cancelar/`);
+    } catch {}
     setState("idle");
     setProgressMessage("");
     setErrorMessage(null);
@@ -360,10 +487,12 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
 
   const downloadReport = async (rutaReporte: string) => {
     try {
-      const filename = rutaReporte.split("/").pop() || rutaReporte;
+      // Normalizar separadores de ruta (Windows usa \, Linux /) y extraer solo el nombre
+      const filename =
+        rutaReporte.replace(/\\/g, "/").split("/").pop() || rutaReporte;
       const response = await axios.get(
         `${API_BASE}/download-report/${encodeURIComponent(filename)}`,
-        { responseType: "blob" }
+        { responseType: "blob" },
       );
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
@@ -374,7 +503,8 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
-      const message = error.response?.data?.detail || "No se pudo descargar el reporte";
+      const message =
+        error.response?.data?.detail || "No se pudo descargar el reporte";
       toast({
         title: "Error de descarga",
         description: message,
@@ -385,13 +515,17 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
 
   const downloadReportPdf = async (rutaReporte: string) => {
     try {
-      const filename = rutaReporte.split("/").pop() || rutaReporte;
-      const pdfName  = filename.replace(/\.xlsx?$/, ".pdf");
+      // Normalizar separadores de ruta (Windows usa \, Linux /) y extraer solo el nombre
+      const filename =
+        rutaReporte.replace(/\\/g, "/").split("/").pop() || rutaReporte;
+      const pdfName = filename.replace(/\.xlsx?$/, ".pdf");
       const response = await axios.get(
         `${API_BASE}/download-report-pdf/${encodeURIComponent(filename)}`,
-        { responseType: "blob" }
+        { responseType: "blob" },
       );
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+      const url = window.URL.createObjectURL(
+        new Blob([response.data], { type: "application/pdf" }),
+      );
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", pdfName);
@@ -400,8 +534,13 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
-      const message = error.response?.data?.detail || "No se pudo generar el PDF";
-      toast({ title: "Error PDF", description: message, variant: "destructive" });
+      const message =
+        error.response?.data?.detail || "No se pudo generar el PDF";
+      toast({
+        title: "Error PDF",
+        description: message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -417,11 +556,25 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
   return (
     <ReconciliationContext.Provider
       value={{
-        state, result, file, errorMessage, progressMessage, history,
-        scheduled, config, setConfig,
-        setFile, uploadAndReconcile, scheduleReconciliation, cancelScheduled,
-        cancelReconciliation, downloadReport, downloadReportPdf,
-        reset, getHistoryByMonth, refreshHistorial: fetchHistorialFromBackend,
+        state,
+        result,
+        file,
+        errorMessage,
+        progressMessage,
+        history,
+        scheduled,
+        config,
+        setConfig,
+        setFile,
+        uploadAndReconcile,
+        scheduleReconciliation,
+        cancelScheduled,
+        cancelReconciliation,
+        downloadReport,
+        downloadReportPdf,
+        reset,
+        getHistoryByMonth,
+        refreshHistorial: fetchHistorialFromBackend,
       }}
     >
       {children}

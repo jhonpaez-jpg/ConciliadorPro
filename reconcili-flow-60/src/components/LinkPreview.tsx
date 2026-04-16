@@ -18,10 +18,10 @@ export default function LinkPreview() {
 
   useEffect(() => {
     document.addEventListener("mouseover", handleMouseOver);
-    document.addEventListener("mouseout",  handleMouseOut);
+    document.addEventListener("mouseout", handleMouseOut);
     return () => {
       document.removeEventListener("mouseover", handleMouseOver);
-      document.removeEventListener("mouseout",  handleMouseOut);
+      document.removeEventListener("mouseout", handleMouseOut);
     };
   }, [handleMouseOver, handleMouseOut]);
 

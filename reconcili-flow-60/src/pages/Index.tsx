@@ -6,6 +6,7 @@ import FloatingIcons from "@/components/FloatingIcons";
 import ChatBot from "@/components/ChatBot";
 import Breadcrumb from "@/components/Breadcrumb";
 import LinkPreview from "@/components/LinkPreview";
+import { useNotifications } from "@/hooks/useNotifications";
 import DashboardSection from "@/sections/DashboardSection";
 import EjecutarSection from "@/sections/EjecutarSection";
 import HistorialSection from "@/sections/HistorialSection";
@@ -45,6 +46,7 @@ function SectionRouter() {
 }
 
 function AppLayout() {
+  useNotifications(); // Registra SW y solicita permiso de notificaciones
   return (
     <div className="h-screen gradient-bg p-5 relative overflow-hidden">
       <FloatingIcons />
@@ -52,7 +54,10 @@ function AppLayout() {
         <MonthlyNav />
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <AppSidebar />
-          <main className="flex-1 p-8 overflow-y-auto custom-scrollbar" style={{ background: "#f8fafd" }}>
+          <main
+            className="flex-1 p-8 overflow-y-auto custom-scrollbar"
+            style={{ background: "#f8fafd" }}
+          >
             <Breadcrumb />
             <SectionRouter />
           </main>

@@ -6,25 +6,69 @@ import { useReconciliation } from "@/context/ReconciliationContext";
 const DEFAULT = { f2Timeout: 2, f3Timeout: 10, f4Timeout: 30, maxDepth: 5 };
 
 const TIMEOUT_FIELDS = [
-  { key: "f2Timeout" as const, title: "Fase 2 — Subset Sum", desc: "Tiempo máximo por llamada DP en búsqueda N:N", unit: "seg", min: 1, max: 10 },
-  { key: "f3Timeout" as const, title: "Fase 3 — Tolerancia", desc: "Tiempo máximo para grupos con diferencia ±5 cts", unit: "seg", min: 5, max: 30 },
-  { key: "f4Timeout" as const, title: "Fase 4 — Profunda / F6-F7", desc: "Tiempo máximo para búsqueda global nocturna", unit: "seg", min: 15, max: 120 },
+  {
+    key: "f2Timeout" as const,
+    title: "Fase 2 — Subset Sum",
+    desc: "Tiempo máximo por llamada DP en búsqueda N:N",
+    unit: "seg",
+    min: 1,
+    max: 10,
+  },
+  {
+    key: "f3Timeout" as const,
+    title: "Fase 3 — Tolerancia",
+    desc: "Tiempo máximo para grupos con diferencia ±5 cts",
+    unit: "seg",
+    min: 5,
+    max: 30,
+  },
+  {
+    key: "f4Timeout" as const,
+    title: "Fase 4 — Profunda / F6-F7",
+    desc: "Tiempo máximo para búsqueda global nocturna",
+    unit: "seg",
+    min: 15,
+    max: 120,
+  },
 ];
 
 const DEPTH_FIELDS = [
-  { key: "maxDepth" as const, title: "Profundidad máxima DP", desc: "Número máximo de candidatos en cada llamada al algoritmo DP (F2, F6, F7)", unit: "niveles", min: 2, max: 10 },
+  {
+    key: "maxDepth" as const,
+    title: "Profundidad máxima DP",
+    desc: "Número máximo de candidatos en cada llamada al algoritmo DP (F2, F6, F7)",
+    unit: "niveles",
+    min: 2,
+    max: 10,
+  },
 ];
 
 const TOGGLE_ITEMS = [
-  { key: "strictMode",    title: "Modo estricto de cuentas",    desc: "No cruzar valores entre diferentes cuentas contables" },
-  { key: "notifications", title: "Notificaciones automáticas",  desc: "Alertar cuando termine cada fase del motor" },
-  { key: "detailedLogs",  title: "Guardar logs detallados",     desc: "Mantener trazabilidad completa por 30 días" },
+  {
+    key: "strictMode",
+    title: "Modo estricto de cuentas",
+    desc: "No cruzar valores entre diferentes cuentas contables",
+  },
+  {
+    key: "notifications",
+    title: "Notificaciones automáticas",
+    desc: "Alertar cuando termine cada fase del motor",
+  },
+  {
+    key: "detailedLogs",
+    title: "Guardar logs detallados",
+    desc: "Mantener trazabilidad completa por 30 días",
+  },
 ];
 
 export default function ConfiguracionSection() {
   const { config, setConfig } = useReconciliation();
   const [local, setLocal] = useState({ ...config });
-  const [toggles, setToggles] = useState({ strictMode: true, notifications: false, detailedLogs: true });
+  const [toggles, setToggles] = useState({
+    strictMode: true,
+    notifications: false,
+    detailedLogs: true,
+  });
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
@@ -44,8 +88,12 @@ export default function ConfiguracionSection() {
     <div className="bg-card rounded-2xl p-6 shadow-card space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-card-foreground">Ajustes del Motor</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Configuración del motor de conciliación v4 — F1 a F7b</p>
+          <h3 className="text-base font-semibold text-card-foreground">
+            Ajustes del Motor
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Configuración del motor de conciliación v4 — F1 a F7b
+          </p>
         </div>
         {saved && (
           <span className="flex items-center gap-1.5 text-xs text-success font-medium">
@@ -61,9 +109,14 @@ export default function ConfiguracionSection() {
         </h4>
         <div className="space-y-2">
           {TIMEOUT_FIELDS.map(({ key, title, desc, unit, min, max }) => (
-            <div key={key} className="flex justify-between items-center p-4 bg-muted/50 rounded-2xl">
+            <div
+              key={key}
+              className="flex justify-between items-center p-4 bg-muted/50 rounded-2xl"
+            >
               <div>
-                <h4 className="text-sm font-medium text-card-foreground">{title}</h4>
+                <h4 className="text-sm font-medium text-card-foreground">
+                  {title}
+                </h4>
                 <p className="text-xs text-muted-foreground">{desc}</p>
               </div>
               <div className="flex items-center gap-3">
@@ -72,11 +125,17 @@ export default function ConfiguracionSection() {
                   value={local[key]}
                   min={min}
                   max={max}
-                  onChange={(e) => setLocal((p) => ({ ...p, [key]: Number(e.target.value) }))}
+                  onChange={(e) =>
+                    setLocal((p) => ({ ...p, [key]: Number(e.target.value) }))
+                  }
                   className="w-20 px-3 py-2 border border-border rounded-lg text-sm bg-card focus:outline-none focus:ring-2 focus:ring-primary/30 text-card-foreground"
                 />
-                <span className="text-sm text-muted-foreground w-10">{unit}</span>
-                <span className="text-[11px] text-muted-foreground">{min}–{max}</span>
+                <span className="text-sm text-muted-foreground w-10">
+                  {unit}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {min}–{max}
+                </span>
               </div>
             </div>
           ))}
@@ -90,9 +149,14 @@ export default function ConfiguracionSection() {
         </h4>
         <div className="space-y-2">
           {DEPTH_FIELDS.map(({ key, title, desc, unit, min, max }) => (
-            <div key={key} className="flex justify-between items-center p-4 bg-muted/50 rounded-2xl">
+            <div
+              key={key}
+              className="flex justify-between items-center p-4 bg-muted/50 rounded-2xl"
+            >
               <div>
-                <h4 className="text-sm font-medium text-card-foreground">{title}</h4>
+                <h4 className="text-sm font-medium text-card-foreground">
+                  {title}
+                </h4>
                 <p className="text-xs text-muted-foreground">{desc}</p>
               </div>
               <div className="flex items-center gap-3">
@@ -101,11 +165,17 @@ export default function ConfiguracionSection() {
                   value={local[key]}
                   min={min}
                   max={max}
-                  onChange={(e) => setLocal((p) => ({ ...p, [key]: Number(e.target.value) }))}
+                  onChange={(e) =>
+                    setLocal((p) => ({ ...p, [key]: Number(e.target.value) }))
+                  }
                   className="w-20 px-3 py-2 border border-border rounded-lg text-sm bg-card focus:outline-none focus:ring-2 focus:ring-primary/30 text-card-foreground"
                 />
-                <span className="text-sm text-muted-foreground w-14">{unit}</span>
-                <span className="text-[11px] text-muted-foreground">{min}–{max}</span>
+                <span className="text-sm text-muted-foreground w-14">
+                  {unit}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {min}–{max}
+                </span>
               </div>
             </div>
           ))}
@@ -119,22 +189,38 @@ export default function ConfiguracionSection() {
         </h4>
         <div className="space-y-2">
           {TOGGLE_ITEMS.map(({ key, title, desc }) => (
-            <div key={key} className="flex justify-between items-center p-4 bg-muted/50 rounded-2xl">
+            <div
+              key={key}
+              className="flex justify-between items-center p-4 bg-muted/50 rounded-2xl"
+            >
               <div>
-                <h4 className="text-sm font-medium text-card-foreground">{title}</h4>
+                <h4 className="text-sm font-medium text-card-foreground">
+                  {title}
+                </h4>
                 <p className="text-xs text-muted-foreground">{desc}</p>
               </div>
               <button
-                onClick={() => setToggles((p) => ({ ...p, [key]: !p[key as keyof typeof p] }))}
+                onClick={() =>
+                  setToggles((p) => ({
+                    ...p,
+                    [key]: !p[key as keyof typeof p],
+                  }))
+                }
                 className={cn(
                   "w-11 h-6 rounded-full relative transition-colors",
-                  toggles[key as keyof typeof toggles] ? "bg-primary" : "bg-border"
+                  toggles[key as keyof typeof toggles]
+                    ? "bg-primary"
+                    : "bg-border",
                 )}
               >
-                <div className={cn(
-                  "w-5 h-5 rounded-full bg-card absolute top-0.5 transition-all shadow-sm",
-                  toggles[key as keyof typeof toggles] ? "right-0.5" : "right-[22px]"
-                )} />
+                <div
+                  className={cn(
+                    "w-5 h-5 rounded-full bg-card absolute top-0.5 transition-all shadow-sm",
+                    toggles[key as keyof typeof toggles]
+                      ? "right-0.5"
+                      : "right-[22px]",
+                  )}
+                />
               </button>
             </div>
           ))}
@@ -143,12 +229,34 @@ export default function ConfiguracionSection() {
 
       {/* Valores actuales */}
       <div className="bg-muted/30 rounded-2xl p-4 border border-border">
-        <p className="text-xs font-medium text-muted-foreground mb-2">Configuración activa</p>
+        <p className="text-xs font-medium text-muted-foreground mb-2">
+          Configuración activa
+        </p>
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <span className="text-muted-foreground">F2 timeout: <strong className="text-card-foreground">{config.f2Timeout}s</strong></span>
-          <span className="text-muted-foreground">F3 timeout: <strong className="text-card-foreground">{config.f3Timeout}s</strong></span>
-          <span className="text-muted-foreground">F4 timeout: <strong className="text-card-foreground">{config.f4Timeout}s</strong></span>
-          <span className="text-muted-foreground">Profundidad: <strong className="text-card-foreground">{config.maxDepth} niveles</strong></span>
+          <span className="text-muted-foreground">
+            F2 timeout:{" "}
+            <strong className="text-card-foreground">
+              {config.f2Timeout}s
+            </strong>
+          </span>
+          <span className="text-muted-foreground">
+            F3 timeout:{" "}
+            <strong className="text-card-foreground">
+              {config.f3Timeout}s
+            </strong>
+          </span>
+          <span className="text-muted-foreground">
+            F4 timeout:{" "}
+            <strong className="text-card-foreground">
+              {config.f4Timeout}s
+            </strong>
+          </span>
+          <span className="text-muted-foreground">
+            Profundidad:{" "}
+            <strong className="text-card-foreground">
+              {config.maxDepth} niveles
+            </strong>
+          </span>
         </div>
       </div>
 
@@ -158,7 +266,9 @@ export default function ConfiguracionSection() {
           disabled={!isDirty}
           className={cn(
             "gradient-primary text-primary-foreground px-6 py-3 rounded-full text-sm font-medium shadow-lg transition-all inline-flex items-center gap-2",
-            isDirty ? "hover:-translate-y-0.5" : "opacity-50 cursor-not-allowed"
+            isDirty
+              ? "hover:-translate-y-0.5"
+              : "opacity-50 cursor-not-allowed",
           )}
         >
           <Save className="w-4 h-4" /> Guardar Cambios

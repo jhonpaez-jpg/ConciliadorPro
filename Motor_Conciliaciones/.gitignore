@@ -1,0 +1,23 @@
+# Entorno virtual
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Variables de entorno — NUNCA subir al repo
+.env
+.env.*
+
+# Base de datos local
+*.db
+*.db-wal
+*.db-shm
+
+# Reportes generados
+reportes/
+data_samples/temp_*
+data_samples/programados/
+
+# Estado del proceso
+estado_proceso.json

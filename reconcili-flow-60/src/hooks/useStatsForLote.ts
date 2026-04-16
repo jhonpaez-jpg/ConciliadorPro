@@ -34,8 +34,8 @@ export function useStatsForLote() {
   const historialMes = getHistoryByMonth(currentMonthIndex, currentYear);
   // Priorizar el mes seleccionado; si no hay, usar el último disponible
   const entrada = historialMes[0] ?? history[0] ?? null;
-  const cuenta   = entrada?.cuenta   ?? null;
-  const id_lote  = entrada?.id_lote  ?? null;
+  const cuenta = entrada?.cuenta ?? null;
+  const id_lote = entrada?.id_lote ?? null;
   const isFallback = historialMes.length === 0 && history.length > 0;
 
   useEffect(() => {

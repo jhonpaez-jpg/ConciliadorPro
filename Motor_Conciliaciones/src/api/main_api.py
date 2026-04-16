@@ -1,28 +1,31 @@
 import os
+
+# ── Cargar .env PRIMERO — antes de cualquier import del proyecto ──────────────
+# En Railway las vars vienen del panel, no del .env
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from src.api.routes import router
-from src.api.report_routes import report_router
+
+# Importar DESPUÉS de cargar el .env para que DATABASE_URL ya esté disponible
 from src.data.db_manager import DatabaseManager
+from src.data.db_connection import IS_POSTGRES
 
-# 1. Inicializar base de datos al arrancar
-db = DatabaseManager("conciliacion.db")
+# 1. Crear tablas PRIMERO — antes de arrancar el scheduler
+db = DatabaseManager()
 db.inicializar_tablas()
-print("✅ Base de datos inicializada correctamente.")
+motor = "PostgreSQL (Railway)" if IS_POSTGRES else "SQLite (local)"
+print(f"✅ Base de datos inicializada — {motor}")
 
-# Activar WAL mode para soportar acceso concurrente desde múltiples hilos
-import sqlite3 as _sq3
-_con = _sq3.connect("conciliacion.db", timeout=30)
-_con.execute("PRAGMA journal_mode=WAL")
-_con.execute("PRAGMA busy_timeout=30000")
-_con.execute("PRAGMA synchronous=NORMAL")  # más rápido con WAL
-_con.commit()
-_con.close()
-print("✅ SQLite WAL mode activado.")
+# 2. Arrancar scheduler DESPUÉS de que las tablas existen
+from src.api.routes import router, _scheduler_tick
+from src.api.report_routes import report_router
 
-# Arrancar scheduler de ejecuciones programadas
-from src.api.routes import _scheduler_tick
 _scheduler_tick()
 print("✅ Scheduler de ejecuciones programadas iniciado.")
 
@@ -30,7 +33,7 @@ print("✅ Scheduler de ejecuciones programadas iniciado.")
 app = FastAPI(
     title="Motor de Conciliación Bancaria 🚀",
     description="API para procesamiento de transacciones financieras",
-    version="1.1.0"
+    version="1.1.0",
 )
 
 # 3. Configuración de CORS
@@ -51,10 +54,12 @@ os.makedirs(REPORT_DIR, exist_ok=True)
 app.include_router(router)
 app.include_router(report_router)
 
+
 # 6. Endpoint de salud
 @app.get("/", tags=["General"])
 async def root():
     return {"message": "API de Conciliación operando correctamente", "status": "online"}
+
 
 # 7. Descarga de reportes
 @app.get("/download-report/{file_name}", tags=["Reportes"])
@@ -65,12 +70,12 @@ async def download_report(file_name: str):
         return FileResponse(
             path=file_path,
             filename=file_name,
-            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
     raise HTTPException(
-        status_code=404,
-        detail=f"El archivo {file_name} no existe en la carpeta de reportes."
+        status_code=404, detail=f"El archivo {file_name} no existe en la carpeta de reportes."
     )
+
 
 # 8. Endpoint para estado inicial del frontend
 @app.get("/get-initial-data", tags=["General"])

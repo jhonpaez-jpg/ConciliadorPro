@@ -1,7 +1,18 @@
 import {
-  BarChart3, Zap, Layers, Cpu, Clock, Moon,
-  Play, History, Settings, FileOutput, PieChart,
-  GitMerge, Sparkles, CalendarClock
+  BarChart3,
+  Zap,
+  Layers,
+  Cpu,
+  Clock,
+  Moon,
+  Play,
+  History,
+  Settings,
+  FileOutput,
+  PieChart,
+  GitMerge,
+  Sparkles,
+  CalendarClock,
 } from "lucide-react";
 import { useApp, SectionId } from "@/context/AppContext";
 import { cn } from "@/lib/utils";
@@ -15,53 +26,93 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { id: "dashboard", label: "Dashboard", icon: PieChart, group: "PRINCIPAL" },
-  { id: "ejecutar", label: "Ejecutar Conciliación", icon: Play, group: "PRINCIPAL" },
+  {
+    id: "ejecutar",
+    label: "Ejecutar Conciliación",
+    icon: Play,
+    group: "PRINCIPAL",
+  },
+  {
+    id: "programadas",
+    label: "Programadas",
+    icon: CalendarClock,
+    group: "PRINCIPAL",
+  },
   { id: "historial", label: "Historial", icon: History, group: "PRINCIPAL" },
-  { id: "programadas", label: "Programadas", icon: CalendarClock, group: "PRINCIPAL" },
   { id: "fastpass", label: "Fast-Pass (F1)", icon: Zap, group: "CONCILIACIÓN" },
-  { id: "subsetsum", label: "Subset Sum (F2)", icon: Layers, group: "CONCILIACIÓN" },
-  { id: "tolerancia", label: "Tolerancia F3 (±5 cts)", icon: Clock, group: "CONCILIACIÓN" },
+  {
+    id: "subsetsum",
+    label: "Subset Sum (F2)",
+    icon: Layers,
+    group: "CONCILIACIÓN",
+  },
+  {
+    id: "tolerancia",
+    label: "Tolerancia F3 (±5 cts)",
+    icon: Clock,
+    group: "CONCILIACIÓN",
+  },
   { id: "localidad", label: "Localidad F4", icon: Moon, group: "CONCILIACIÓN" },
   { id: "montopuro", label: "Monto Puro F5", icon: Cpu, group: "CONCILIACIÓN" },
-  { id: "subset", label: "Neg. Grandes F6", icon: GitMerge, group: "CONCILIACIÓN" },
-  { id: "finalcleaning", label: "Limpieza Final (F7)", icon: Sparkles, group: "CONCILIACIÓN" },
-  { id: "configuracion", label: "Ajustes", icon: Settings, group: "CONFIGURACIÓN" },
-  { id: "reportes", label: "Reportes", icon: FileOutput, group: "CONFIGURACIÓN" },
+  {
+    id: "subset",
+    label: "Neg. Grandes F6",
+    icon: GitMerge,
+    group: "CONCILIACIÓN",
+  },
+  {
+    id: "finalcleaning",
+    label: "Limpieza Final (F7)",
+    icon: Sparkles,
+    group: "CONCILIACIÓN",
+  },
+  {
+    id: "configuracion",
+    label: "Ajustes",
+    icon: Settings,
+    group: "CONFIGURACIÓN",
+  },
+  {
+    id: "reportes",
+    label: "Reportes",
+    icon: FileOutput,
+    group: "CONFIGURACIÓN",
+  },
 ];
 
 // Mapeo id → slug URL (mismo que AppContext)
 const SLUGS: Record<SectionId, string> = {
-  dashboard:     "/dashboard",
-  ejecutar:      "/ejecutar",
-  historial:     "/historial",
-  programadas:   "/programadas",
-  fastpass:      "/fases/fast-pass-f1",
-  subsetsum:     "/fases/subset-sum-f2",
-  tolerancia:    "/fases/tolerancia-f3",
-  localidad:     "/fases/localidad-f4",
-  montopuro:     "/fases/monto-puro-f5",
-  subset:        "/fases/subset-global-f6",
+  dashboard: "/dashboard",
+  ejecutar: "/ejecutar-conciliacionbien",
+  historial: "/historial",
+  programadas: "/programadas",
+  fastpass: "/fases/fast-pass-f1",
+  subsetsum: "/fases/subset-sum-f2",
+  tolerancia: "/fases/tolerancia-f3",
+  localidad: "/fases/localidad-f4",
+  montopuro: "/fases/monto-puro-f5",
+  subset: "/fases/subset-global-f6",
   finalcleaning: "/fases/final-cleaning-f7",
-  profunda:      "/fases/avanzadas",
+  profunda: "/fases/avanzadas",
   configuracion: "/configuracion",
-  reportes:      "/reportes",
+  reportes: "/reportes",
 };
 
-// Dots de color por fase (igual que Index.html)
+// Dots de color por fase
 const PHASE_DOTS: Partial<Record<SectionId, string>> = {
-  fastpass:      "#10b981",
-  subsetsum:     "#f59e0b",
-  tolerancia:    "#8b5cf6",
-  localidad:     "#3b82f6",
-  montopuro:     "#ef4444",
-  subset:        "#f97316",
+  fastpass: "#10b981",
+  subsetsum: "#f59e0b",
+  tolerancia: "#8b5cf6",
+  localidad: "#3b82f6",
+  montopuro: "#ef4444",
+  subset: "#f97316",
   finalcleaning: "#06b6d4",
 };
 
 export default function AppSidebar() {
   const { activeSection, setActiveSection } = useApp();
 
-  const groups = [...new Set(menuItems.map(i => i.group))];
+  const groups = [...new Set(menuItems.map((i) => i.group))];
 
   return (
     <aside className="w-[280px] bg-sidebar-bg flex flex-col flex-shrink-0 h-full overflow-hidden">
@@ -71,45 +122,53 @@ export default function AppSidebar() {
             <BarChart3 className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-sidebar-fg">Conciliador Pro</h2>
+            <h2 className="text-lg font-semibold text-sidebar-fg">
+              Conciliador Pro
+            </h2>
             <p className="text-xs text-sidebar-muted">Motor Automático</p>
           </div>
         </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto sidebar-scrollbar p-6 space-y-6">
-        {groups.map(group => (
+        {groups.map((group) => (
           <div key={group}>
             <p className="text-[11px] uppercase tracking-widest text-sidebar-muted mb-3 font-medium">
               {group}
             </p>
             <div className="space-y-1">
-              {menuItems.filter(i => i.group === group).map(item => {
-                const isActive = activeSection === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveSection(item.id)}
-                    data-href={SLUGS[item.id]}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200",
-                      isActive
-                        ? "bg-primary/20 text-sidebar-fg border-l-[3px] border-primary"
-                        : "text-sidebar-muted hover:bg-sidebar-border/30 hover:text-sidebar-fg border-l-[3px] border-transparent"
-                    )}
-                  >
-                    <item.icon className={cn(
-                      "w-[18px] h-[18px] flex-shrink-0",
-                      isActive ? "text-primary" : "text-sidebar-muted"
-                    )} />
-                    <span>{item.label}</span>
-                    {PHASE_DOTS[item.id] && (
-                      <span className="phase-dot ml-auto"
-                            style={{ background: PHASE_DOTS[item.id] }} />
-                    )}
-                  </button>
-                );
-              })}
+              {menuItems
+                .filter((i) => i.group === group)
+                .map((item) => {
+                  const isActive = activeSection === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveSection(item.id)}
+                      data-href={SLUGS[item.id]}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200",
+                        isActive
+                          ? "bg-primary/20 text-sidebar-fg border-l-[3px] border-primary"
+                          : "text-sidebar-muted hover:bg-sidebar-border/30 hover:text-sidebar-fg border-l-[3px] border-transparent",
+                      )}
+                    >
+                      <item.icon
+                        className={cn(
+                          "w-[18px] h-[18px] flex-shrink-0",
+                          isActive ? "text-primary" : "text-sidebar-muted",
+                        )}
+                      />
+                      <span>{item.label}</span>
+                      {PHASE_DOTS[item.id] && (
+                        <span
+                          className="phase-dot ml-auto"
+                          style={{ background: PHASE_DOTS[item.id] }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
             </div>
           </div>
         ))}

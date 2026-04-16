@@ -37,22 +37,23 @@ except ImportError:
 # ──────────────────────────────────────────────────────────────────────────────
 
 UMBRAL_BACKTRACKING = 20
-_MAX_CANDIDATOS_DP  = 2_000     # aumentado de 500 → más cobertura
-_TIMEOUT_DP_SEG     = 8.0
-_ESCALA_GRANDE      = 10_000     # > 10M
-_ESCALA_MEDIANA     = 1_000      # 100K – 10M
-_UMBRAL_GRANDE      = 10_000_000
-_UMBRAL_MEDIANO     = 100_000    # exacto para < 100K (precisión centavo)
-_UMBRAL_NEG_GRANDE  = 500_000    # F6g: negativos > 500K (antes era 5M)
+_MAX_CANDIDATOS_DP = 2_000  # aumentado de 500 → más cobertura
+_TIMEOUT_DP_SEG = 8.0
+_ESCALA_GRANDE = 10_000  # > 10M
+_ESCALA_MEDIANA = 1_000  # 100K – 10M
+_UMBRAL_GRANDE = 10_000_000
+_UMBRAL_MEDIANO = 100_000  # exacto para < 100K (precisión centavo)
+_UMBRAL_NEG_GRANDE = 500_000  # F6g: negativos > 500K (antes era 5M)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Funciones DP
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _dp_exacto(
     objetivo: int,
-    candidatos: list[tuple],   # [(id, monto_abs), ...] DESC
+    candidatos: list[tuple],  # [(id, monto_abs), ...] DESC
     timeout: float = _TIMEOUT_DP_SEG,
 ) -> list[tuple] | None:
     """DP sin escala. Preciso al centavo. Adecuado para objetivos < 100K."""
@@ -96,8 +97,7 @@ def _dp_escalado(
     if target_sc == 0:
         return _dp_exacto(objetivo, candidatos, timeout)
     id_a = {id_c: abs_m for id_c, abs_m in candidatos}
-    cands_sc = [(id_c, abs_m // escala) for id_c, abs_m in candidatos
-                if abs_m // escala > 0]
+    cands_sc = [(id_c, abs_m // escala) for id_c, abs_m in candidatos if abs_m // escala > 0]
     if not cands_sc or sum(m for _, m in cands_sc) < target_sc:
         return None
     dp: dict[int, tuple | None] = {0: None}
@@ -148,6 +148,7 @@ def _cands_desc(pool: list[tuple], usados: set[int], max_n: int) -> list[tuple]:
 # Motor principal
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class ReconciliationEngine:
     """
     Motor de Conciliación Contable — v4 final optimizado.
@@ -164,12 +165,12 @@ class ReconciliationEngine:
     """
 
     def __init__(self):
-        self.conciliadas:                list[dict] = []
-        self.pendientes:                 list       = []
-        self.pendientes_con_contraparte: list       = []
-        self.pendientes_sin_contraparte: list       = []
-        self.tasa_real:                  float      = 0.0
-        self.tasa_global:                float      = 0.0
+        self.conciliadas: list[dict] = []
+        self.pendientes: list = []
+        self.pendientes_con_contraparte: list = []
+        self.pendientes_sin_contraparte: list = []
+        self.tasa_real: float = 0.0
+        self.tasa_global: float = 0.0
 
     def ejecutar_proceso_completo(
         self,
@@ -180,14 +181,16 @@ class ReconciliationEngine:
         print(f"🚀 Motor activado: {total} registros.")
 
         lookup: dict[int, Transaccion] = {t.id_transaccion: t for t in transacciones_list}
-        df = pl.DataFrame({
-            "id":        [t.id_transaccion for t in transacciones_list],
-            "monto":     [t.monto_centavos for t in transacciones_list],
-            "n_diario":  [t.n_diario       for t in transacciones_list],
-            "localidad": [t.localidad      for t in transacciones_list],
-        })
+        df = pl.DataFrame(
+            {
+                "id": [t.id_transaccion for t in transacciones_list],
+                "monto": [t.monto_centavos for t in transacciones_list],
+                "n_diario": [t.n_diario for t in transacciones_list],
+                "localidad": [t.localidad for t in transacciones_list],
+            }
+        )
 
-        ids_conciliados: set[int]   = set()
+        ids_conciliados: set[int] = set()
         resultado_final: list[dict] = []
 
         # ── F1 ───────────────────────────────────────────────────────────────
@@ -236,43 +239,51 @@ class ReconciliationEngine:
                     nuevos = [i for i in row["ids"] if i not in ids_conciliados]
                     if not nuevos:
                         continue
-                    poss = [(i, lookup[i].monto_centavos) for i in nuevos
-                            if lookup[i].monto_centavos > 0]
-                    negs = [(i, lookup[i].monto_centavos) for i in nuevos
-                            if lookup[i].monto_centavos < 0]
+                    poss = [
+                        (i, lookup[i].monto_centavos)
+                        for i in nuevos
+                        if lookup[i].monto_centavos > 0
+                    ]
+                    negs = [
+                        (i, lookup[i].monto_centavos)
+                        for i in nuevos
+                        if lookup[i].monto_centavos < 0
+                    ]
                     if not poss or not negs:
                         continue
                     if len(poss) == 1:
-                        resultado_final.append({"fase": "F2",
-                                                "grupo": [lookup[i] for i in nuevos]})
+                        resultado_final.append({"fase": "F2", "grupo": [lookup[i] for i in nuevos]})
                         ids_conciliados.update(nuevos)
                     elif len(negs) <= UMBRAL_BACKTRACKING:
                         neg_disp = list(negs)
                         subdividido = False
                         for id_p, m_p in sorted(poss, key=lambda x: x[1], reverse=True):
-                            cands = sorted([(i, abs(m)) for i, m in neg_disp],
-                                           key=lambda x: x[1], reverse=True)
+                            cands = sorted(
+                                [(i, abs(m)) for i, m in neg_disp], key=lambda x: x[1], reverse=True
+                            )
                             combo = _elegir_dp(m_p, cands)
                             if combo is not None:
                                 sg = [id_p] + [i for i, _ in combo]
-                                resultado_final.append({"fase": "F2",
-                                                        "grupo": [lookup[i] for i in sg]})
+                                resultado_final.append(
+                                    {"fase": "F2", "grupo": [lookup[i] for i in sg]}
+                                )
                                 ids_conciliados.update(sg)
                                 ids_c = {i for i, _ in combo}
-                                neg_disp = [(i, m) for i, m in neg_disp
-                                            if i not in ids_c]
+                                neg_disp = [(i, m) for i, m in neg_disp if i not in ids_c]
                                 subdividido = True
                         if not subdividido:
-                            resultado_final.append({"fase": "F2",
-                                                    "grupo": [lookup[i] for i in nuevos]})
+                            resultado_final.append(
+                                {"fase": "F2", "grupo": [lookup[i] for i in nuevos]}
+                            )
                             ids_conciliados.update(nuevos)
                     else:
                         grupos_sin_subdividir += 1
-                        resultado_final.append({"fase": "F2",
-                                                "grupo": [lookup[i] for i in nuevos]})
+                        resultado_final.append({"fase": "F2", "grupo": [lookup[i] for i in nuevos]})
                         ids_conciliados.update(nuevos)
-        print(f"   ✅ F2: {len(resultado_final) - f2_i} grupos."
-              + (f" ({grupos_sin_subdividir} sin subdividir)" if grupos_sin_subdividir else ""))
+        print(
+            f"   ✅ F2: {len(resultado_final) - f2_i} grupos."
+            + (f" ({grupos_sin_subdividir} sin subdividir)" if grupos_sin_subdividir else "")
+        )
 
         # ── F3 ───────────────────────────────────────────────────────────────
         print("🔍 F3: Tolerancia ±5 centavos...")
@@ -287,8 +298,7 @@ class ReconciliationEngine:
             for row in gf.iter_rows(named=True):
                 nuevos = [i for i in row["ids"] if i not in ids_conciliados]
                 if nuevos:
-                    resultado_final.append({"fase": "F3",
-                                            "grupo": [lookup[i] for i in nuevos]})
+                    resultado_final.append({"fase": "F3", "grupo": [lookup[i] for i in nuevos]})
                     ids_conciliados.update(nuevos)
         print(f"   ✅ F3: {len(resultado_final) - f3_i} grupos.")
 
@@ -305,26 +315,27 @@ class ReconciliationEngine:
                 .select(["id_neg", "localidad", "ma"])
             )
             m4 = (
-                p4.join(n4, left_on=["localidad", "monto"],
-                            right_on=["localidad", "ma"], how="inner")
+                p4.join(
+                    n4, left_on=["localidad", "monto"], right_on=["localidad", "ma"], how="inner"
+                )
                 .select(["id", "id_neg"])
                 .unique(subset=["id"])
                 .unique(subset=["id_neg"])
             )
             for id_pos, id_neg in m4.iter_rows():
                 if id_pos not in ids_conciliados and id_neg not in ids_conciliados:
-                    resultado_final.append({"fase": "F4",
-                                            "grupo": [lookup[id_pos], lookup[id_neg]]})
+                    resultado_final.append(
+                        {"fase": "F4", "grupo": [lookup[id_pos], lookup[id_neg]]}
+                    )
                     ids_conciliados.add(id_pos)
                     ids_conciliados.add(id_neg)
         print(f"   ✅ F4: {len(resultado_final) - f4_i} grupos.")
 
         # ── Bloque global F6g + F7 + F7b ─────────────────────────────────────
-        pendientes_bloque = [t for t in transacciones_list
-                             if t.id_transaccion not in ids_conciliados]
-        f6g_g, f7_g, f7b_g = self._ejecutar_bloque_global(
-            pendientes_bloque, ids_conciliados
-        )
+        pendientes_bloque = [
+            t for t in transacciones_list if t.id_transaccion not in ids_conciliados
+        ]
+        f6g_g, f7_g, f7b_g = self._ejecutar_bloque_global(pendientes_bloque, ids_conciliados)
         for fase_grupos, nombre in [(f6g_g, "F6g"), (f7_g, "F7"), (f7b_g, "F7b")]:
             fi = len(resultado_final)
             for g in fase_grupos:
@@ -337,8 +348,7 @@ class ReconciliationEngine:
         # ── F5 — ÚLTIMO RECURSO ───────────────────────────────────────────────
         print("🔍 F5: Parejas exactas solo por monto (último recurso)...")
         f5_i = len(resultado_final)
-        pendientes_f5 = [t for t in transacciones_list
-                         if t.id_transaccion not in ids_conciliados]
+        pendientes_f5 = [t for t in transacciones_list if t.id_transaccion not in ids_conciliados]
         pos_pool: dict = _dd(list)
         neg_pool: dict = _dd(list)
         for t in pendientes_f5:
@@ -353,21 +363,25 @@ class ReconciliationEngine:
                 id_pos = pos_pool[monto].pop(0)
                 id_neg = neg_pool[monto].pop(0)
                 if id_pos not in ids_conciliados and id_neg not in ids_conciliados:
-                    resultado_final.append({"fase": "F5",
-                                            "grupo": [lookup[id_pos], lookup[id_neg]]})
+                    resultado_final.append(
+                        {"fase": "F5", "grupo": [lookup[id_pos], lookup[id_neg]]}
+                    )
                     ids_conciliados.add(id_pos)
                     ids_conciliados.add(id_neg)
         del pos_pool, neg_pool, pendientes_f5
         print(f"   ✅ F5: {len(resultado_final) - f5_i} grupos.")
 
         # ── Cierre ────────────────────────────────────────────────────────────
-        pendientes_todos = [t for t in transacciones_list
-                            if t.id_transaccion not in ids_conciliados]
+        pendientes_todos = [
+            t for t in transacciones_list if t.id_transaccion not in ids_conciliados
+        ]
         if pendientes_todos:
-            df_p = pl.DataFrame({
-                "id":    [t.id_transaccion for t in pendientes_todos],
-                "monto": [t.monto_centavos for t in pendientes_todos],
-            })
+            df_p = pl.DataFrame(
+                {
+                    "id": [t.id_transaccion for t in pendientes_todos],
+                    "monto": [t.monto_centavos for t in pendientes_todos],
+                }
+            )
             pos_m = set(df_p.filter(pl.col("monto") > 0)["monto"].to_list())
             neg_m = set((df_p.filter(pl.col("monto") < 0)["monto"] * -1).to_list())
             cruce = pos_m & neg_m
@@ -379,15 +393,15 @@ class ReconciliationEngine:
             pend_sin = []
 
         universo_real = len(ids_conciliados) + len(pend_con)
-        tasa_real   = (len(ids_conciliados) / universo_real * 100) if universo_real else 100.0
-        tasa_global = (len(ids_conciliados) / total * 100)         if total         else 0.0
+        tasa_real = (len(ids_conciliados) / universo_real * 100) if universo_real else 100.0
+        tasa_global = (len(ids_conciliados) / total * 100) if total else 0.0
 
-        self.conciliadas                = resultado_final
-        self.pendientes                 = pendientes_todos
+        self.conciliadas = resultado_final
+        self.pendientes = pendientes_todos
         self.pendientes_con_contraparte = pend_con
         self.pendientes_sin_contraparte = pend_sin
-        self.tasa_real                  = tasa_real
-        self.tasa_global                = tasa_global
+        self.tasa_real = tasa_real
+        self.tasa_global = tasa_global
 
         print(f"\n{'='*55}")
         print(f"✅ Motor completado.")
@@ -421,12 +435,16 @@ class ReconciliationEngine:
         if not transacciones:
             return [], [], []
 
-        positivos = [t for t in transacciones
-                     if t.monto_centavos > 0
-                     and t.id_transaccion not in ids_ya_usados]
-        negativos = [t for t in transacciones
-                     if t.monto_centavos < 0
-                     and t.id_transaccion not in ids_ya_usados]
+        positivos = [
+            t
+            for t in transacciones
+            if t.monto_centavos > 0 and t.id_transaccion not in ids_ya_usados
+        ]
+        negativos = [
+            t
+            for t in transacciones
+            if t.monto_centavos < 0 and t.id_transaccion not in ids_ya_usados
+        ]
 
         if not positivos or not negativos:
             return [], [], []
@@ -458,10 +476,12 @@ class ReconciliationEngine:
             if match is None:
                 continue
             ids_m = {id_t for id_t, _ in match}
-            grupos_f6g.append({
-                "fase": "F6",
-                "grupo": [idx_all[id_neg]] + [idx_all[i] for i in ids_m],
-            })
+            grupos_f6g.append(
+                {
+                    "fase": "F6",
+                    "grupo": [idx_all[id_neg]] + [idx_all[i] for i in ids_m],
+                }
+            )
             usados.add(id_neg)
             usados.update(ids_m)
 
@@ -481,10 +501,12 @@ class ReconciliationEngine:
             if match is None:
                 continue
             ids_m = {id_t for id_t, _ in match}
-            grupos_f7.append({
-                "fase": "F7",
-                "grupo": [idx_all[id_pos]] + [idx_all[i] for i in ids_m],
-            })
+            grupos_f7.append(
+                {
+                    "fase": "F7",
+                    "grupo": [idx_all[id_pos]] + [idx_all[i] for i in ids_m],
+                }
+            )
             usados.add(id_pos)
             usados.update(ids_m)
 
@@ -514,27 +536,31 @@ class ReconciliationEngine:
             if match is None:
                 continue
             ids_m = {id_t for id_t, _ in match}
-            grupos_f7b.append({
-                "fase": "F7b",
-                "grupo": [idx_all[id_pos]] + [idx_all[i] for i in ids_m],
-            })
+            grupos_f7b.append(
+                {
+                    "fase": "F7b",
+                    "grupo": [idx_all[id_pos]] + [idx_all[i] for i in ids_m],
+                }
+            )
             usados.add(id_pos)
             usados.update(ids_m)
 
         # Log resumen
         n6g = sum(len(g["grupo"]) for g in grupos_f6g)
-        n7  = sum(len(g["grupo"]) for g in grupos_f7)
+        n7 = sum(len(g["grupo"]) for g in grupos_f7)
         n7b = sum(len(g["grupo"]) for g in grupos_f7b)
         neg_cubiertos = (
             sum(1 for g in grupos_f6g for t in g["grupo"] if t.monto_centavos < 0)
-            + sum(1 for g in grupos_f7  for t in g["grupo"] if t.monto_centavos < 0)
+            + sum(1 for g in grupos_f7 for t in g["grupo"] if t.monto_centavos < 0)
             + sum(1 for g in grupos_f7b for t in g["grupo"] if t.monto_centavos < 0)
         )
-        print(f"      Bloque global → "
-              f"F6: {len(grupos_f6g)} grp/{n6g} tx | "
-              f"F7: {len(grupos_f7)} grp/{n7} tx | "
-              f"F7b: {len(grupos_f7b)} grp/{n7b} tx | "
-              f"neg cubiertos: {neg_cubiertos}/{len(neg_pool)}")
+        print(
+            f"      Bloque global → "
+            f"F6: {len(grupos_f6g)} grp/{n6g} tx | "
+            f"F7: {len(grupos_f7)} grp/{n7} tx | "
+            f"F7b: {len(grupos_f7b)} grp/{n7b} tx | "
+            f"neg cubiertos: {neg_cubiertos}/{len(neg_pool)}"
+        )
 
         return grupos_f6g, grupos_f7, grupos_f7b
 

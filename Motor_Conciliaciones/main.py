@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     # 1. Cargar datos pendientes de la DB
     filas_crudas = db.obtener_pendientes(CUENTA_A_CONCILIAR)
-    
+
     if not filas_crudas:
         print("📭 No hay transacciones pendientes para esta cuenta.")
     else:
@@ -35,14 +35,14 @@ if __name__ == "__main__":
         # 4. PERSISTENCIA: Guardar los resultados en la DB
         if conciliadas:
             db.registrar_conciliacion_masiva(conciliadas)
-        
+
         # 5. GENERAR PRODUCTO FINAL (Excel)
         ruta_archivo = reporter.generar_excel_final(conciliadas, pendientes)
 
         # 6. RESUMEN FINAL
-        print(f"\n" + "="*30)
+        print(f"\n" + "=" * 30)
         print(f"✨ RESULTADOS FINALES ✨")
         print(f"✅ Transacciones Conciliadas: {sum(len(g) for g in conciliadas)}")
         print(f"⚠️ Transacciones Pendientes: {len(pendientes)}")
         print(f"📂 Reporte disponible en: {ruta_archivo}")
-        print("="*30)
+        print("=" * 30)

@@ -1,20 +1,68 @@
 import { ChevronRight, Home } from "lucide-react";
 import { useApp, SectionId } from "@/context/AppContext";
 
-const SECTION_PATHS: Record<SectionId, { label: string; parent?: SectionId; slug: string }> = {
-  dashboard:     { label: "Dashboard",            slug: "/dashboard" },
-  ejecutar:      { label: "Ejecutar Conciliación", slug: "/ejecutar",                  parent: "dashboard" },
-  historial:     { label: "Historial",             slug: "/historial",                 parent: "dashboard" },
-  fastpass:      { label: "Fast-Pass (F1)",         slug: "/fases/fast-pass-f1",        parent: "dashboard" },
-  subsetsum:     { label: "Subset Sum (F2)",        slug: "/fases/subset-sum-f2",       parent: "dashboard" },
-  tolerancia:    { label: "Tolerancia F3",          slug: "/fases/tolerancia-f3",       parent: "dashboard" },
-  localidad:     { label: "Localidad F4",           slug: "/fases/localidad-f4",        parent: "dashboard" },
-  montopuro:     { label: "Monto Puro F5",          slug: "/fases/monto-puro-f5",       parent: "dashboard" },
-  subset:        { label: "Subset Sum F6",          slug: "/fases/subset-global-f6",    parent: "dashboard" },
-  finalcleaning: { label: "Final Cleaning F7",      slug: "/fases/final-cleaning-f7",   parent: "dashboard" },
-  profunda:      { label: "Fases Avanzadas",        slug: "/fases/avanzadas",           parent: "dashboard" },
-  configuracion: { label: "Ajustes",                slug: "/configuracion",             parent: "dashboard" },
-  reportes:      { label: "Reportes",               slug: "/reportes",                  parent: "dashboard" },
+const SECTION_PATHS: Record<
+  SectionId,
+  { label: string; parent?: SectionId; slug: string }
+> = {
+  dashboard: { label: "Dashboard", slug: "/dashboard" },
+  ejecutar: {
+    label: "Ejecutar Conciliación",
+    slug: "/ejecutar-conciliacion",
+    parent: "dashboard",
+  },
+  programadas: {
+    label: "Conciliaciones Programadas",
+    slug: "/programadas",
+    parent: "dashboard",
+  },
+  historial: { label: "Historial", slug: "/historial", parent: "dashboard" },
+  fastpass: {
+    label: "Fast-Pass (F1)",
+    slug: "/fases/fast-pass-f1",
+    parent: "dashboard",
+  },
+  subsetsum: {
+    label: "Subset Sum (F2)",
+    slug: "/fases/subset-sum-f2",
+    parent: "dashboard",
+  },
+  tolerancia: {
+    label: "Tolerancia F3",
+    slug: "/fases/tolerancia-f3",
+    parent: "dashboard",
+  },
+  localidad: {
+    label: "Localidad F4",
+    slug: "/fases/localidad-f4",
+    parent: "dashboard",
+  },
+  montopuro: {
+    label: "Monto Puro F5",
+    slug: "/fases/monto-puro-f5",
+    parent: "dashboard",
+  },
+  subset: {
+    label: "Subset Sum F6",
+    slug: "/fases/subset-global-f6",
+    parent: "dashboard",
+  },
+  finalcleaning: {
+    label: "Final Cleaning F7",
+    slug: "/fases/final-cleaning-f7",
+    parent: "dashboard",
+  },
+  profunda: {
+    label: "Fases Avanzadas",
+    slug: "/fases/avanzadas",
+    parent: "dashboard",
+  },
+  configuracion: {
+    label: "Ajustes",
+    slug: "/configuracion",
+    parent: "dashboard",
+  },
+  reportes: { label: "Reportes", slug: "/reportes", parent: "dashboard" },
 };
 
 // Construye la cadena de ancestros hasta la raíz
