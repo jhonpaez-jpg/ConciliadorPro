@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Save, RotateCcw, CheckCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Save, RotateCcw, CheckCircle, Bell, BellOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useReconciliation } from "@/context/ReconciliationContext";
+import { requestNotificationPermission } from "@/hooks/useNotifications";
 
 const DEFAULT = { f2Timeout: 2, f3Timeout: 10, f4Timeout: 30, maxDepth: 5 };
 
@@ -70,6 +71,14 @@ export default function ConfiguracionSection() {
     detailedLogs: true,
   });
   const [saved, setSaved] = useState(false);
+  const [notifStatus, setNotifStatus] = useState<"default" | "granted" | "denied">("default");
+
+  // Leer estado actual del permiso al montar
+  useEffect(() => {
+    if ("Notification" in window) {
+      setNotifStatus(Notification.permission as "default" | "granted" | "denied");
+    }
+  }, []);
 
   const handleSave = () => {
     setConfig(local);
@@ -257,6 +266,49 @@ export default function ConfiguracionSection() {
               {config.maxDepth} niveles
             </strong>
           </span>
+        </div>
+      </div>
+
+      {/* Notificaciones */}
+      <div>
+        <h4 className="text-sm font-semibold text-card-foreground mb-4 pb-2 border-b border-border">
+          Notificaciones
+        </h4>
+        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-2xl">
+          <div>
+            <h4 className="text-sm font-medium text-card-foreground">
+              Notificaciones de escritorio
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Recibe alertas cuando termine una conciliación (estilo WhatsApp — solo cuando no estás mirando la pestaña)
+            </p>
+            {notifStatus === "denied" && (
+              <p className="text-xs text-destructive mt-1">
+                Permiso denegado. Ve a Configuración del navegador → Notificaciones para habilitarlas.
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-3 shrink-0 ml-4">
+            {notifStatus === "granted" ? (
+              <span className="flex items-center gap-1.5 text-xs text-success font-medium">
+                <Bell className="w-3.5 h-3.5" /> Activas
+              </span>
+            ) : notifStatus === "denied" ? (
+              <span className="flex items-center gap-1.5 text-xs text-destructive font-medium">
+                <BellOff className="w-3.5 h-3.5" /> Bloqueadas
+              </span>
+            ) : (
+              <button
+                onClick={async () => {
+                  const granted = await requestNotificationPermission();
+                  setNotifStatus(granted ? "granted" : "denied");
+                }}
+                className="px-4 py-2 rounded-full text-xs font-medium gradient-primary text-primary-foreground shadow hover:-translate-y-0.5 transition-all inline-flex items-center gap-1.5"
+              >
+                <Bell className="w-3.5 h-3.5" /> Activar
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

@@ -23,7 +23,6 @@ import {
 } from "@/context/ReconciliationContext";
 import { cn } from "@/lib/utils";
 import { useState, useRef } from "react";
-import { useNotifications } from "@/hooks/useNotifications";
 import axios from "axios";
 
 const CONFIG_FIELDS: {
@@ -141,8 +140,6 @@ export default function EjecutarSection() {
   const [validating, setValidating] = useState(false);
   const progressRef = useRef(0); // valor suavizado de la barra
 
-  // Inicializar notificaciones
-  useNotifications();
   const [schedFecha, setSchedFecha] = useState(
     () => new Date().toISOString().split("T")[0],
   );
