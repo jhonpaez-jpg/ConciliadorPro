@@ -7,6 +7,7 @@ import ChatBot from "@/components/ChatBot";
 import Breadcrumb from "@/components/Breadcrumb";
 import LinkPreview from "@/components/LinkPreview";
 import { useNotifications } from "@/hooks/useNotifications";
+import AppNotificationContainer from "@/components/AppNotification";
 import DashboardSection from "@/sections/DashboardSection";
 import EjecutarSection from "@/sections/EjecutarSection";
 import HistorialSection from "@/sections/HistorialSection";
@@ -46,10 +47,11 @@ function SectionRouter() {
 }
 
 function AppLayout() {
-  useNotifications(); // Registra SW y solicita permiso de notificaciones
+  useNotifications();
   return (
     <div className="h-screen gradient-bg p-5 relative overflow-hidden">
       <FloatingIcons />
+      <AppNotificationContainer />
       <div className="max-w-[1600px] h-[calc(100vh-40px)] mx-auto glass-container rounded-[32px] shadow-container overflow-hidden relative z-10 flex flex-col">
         <MonthlyNav />
         <div className="flex flex-1 min-h-0 overflow-hidden">

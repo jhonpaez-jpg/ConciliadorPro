@@ -1,1 +1,1 @@
-{"fase": "listo", "mensaje": "Completado en 1618s", "conciliados": 27263, "pendientes": 3624, "tasa": 88.27, "reporte": "resultado_conciliacion_20260416_122204.xlsx", "cuenta": "299005060", "total_leido": 30887, "periodo": "2025/012", "id_lote": 1776358507}
+{"fase": "procesando", "mensaje": "F6/F7: Subset Sum global sobre pendientes...", "conciliados": 23259, "pendientes": 2494, "tasa": 90.32, "reporte": "resultado_conciliacion_20260416_153221.xlsx", "cuenta": "299005060", "total_leido": 25753, "periodo": "2025/001", "id_lote": 1776370274}

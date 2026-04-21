@@ -17,46 +17,139 @@ reporter = ReconciliationReporter()
 
 BATCH_SIZE = 50_000
 
-# Estado persistido en disco (compartido entre workers)
-_ESTADO_FILE = "estado_proceso.json"
+# Directorio base del servidor — todas las rutas relativas se resuelven desde aquí
+# Esto garantiza que el scheduler encuentre los archivos sin importar el cwd
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# ── Estado por lote — en DB, no en archivo global ────────────────────────────
+# Cada ejecución tiene su propio estado identificado por id_lote.
+# Esto permite múltiples usuarios concurrentes sin interferencia.
 
-def _leer_estado() -> dict:
+def _leer_estado(id_lote: int = 0) -> dict:
+    """Lee el estado de un lote específico desde la DB."""
+    _default = {"fase": "idle", "mensaje": "", "conciliados": 0,
+                 "pendientes": 0, "tasa": 0.0, "reporte": None, "id_lote": id_lote}
+    if not id_lote:
+        return _default
     try:
-        import json
-
-        with open(_ESTADO_FILE, "r") as f:
-            return json.load(f)
-    except:
+        with engine.connect() as con:
+            row = con.execute(_sql(
+                "SELECT fase, mensaje, conciliados, pendientes, tasa, reporte, "
+                "cuenta, total_leido, periodo "
+                "FROM proceso_estado WHERE id_lote = :lote"
+            ), {"lote": id_lote}).fetchone()
+        if not row:
+            return _default
         return {
-            "fase": "idle",
-            "mensaje": "",
-            "conciliados": 0,
-            "pendientes": 0,
-            "tasa": 0.0,
-            "reporte": None,
+            "fase": row[0], "mensaje": row[1], "conciliados": row[2],
+            "pendientes": row[3], "tasa": row[4], "reporte": row[5],
+            "cuenta": row[6], "total_leido": row[7], "periodo": row[8],
+            "id_lote": id_lote,
         }
+    except Exception:
+        return _default
 
 
 def _escribir_estado(estado: dict):
-    import json
+    """Escribe el estado de un lote en la DB."""
+    id_lote = estado.get("id_lote", 0)
+    if not id_lote:
+        return
+    try:
+        with engine.begin() as con:
+            con.execute(_sql("""
+                INSERT INTO proceso_estado
+                    (id_lote, fase, mensaje, conciliados, pendientes, tasa,
+                     reporte, cuenta, total_leido, periodo, actualizado_en)
+                VALUES
+                    (:lote, :fase, :msg, :conci, :pend, :tasa,
+                     :reporte, :cuenta, :total, :periodo, NOW())
+                ON DUPLICATE KEY UPDATE
+                    fase=VALUES(fase), mensaje=VALUES(mensaje),
+                    conciliados=VALUES(conciliados), pendientes=VALUES(pendientes),
+                    tasa=VALUES(tasa), reporte=VALUES(reporte),
+                    cuenta=VALUES(cuenta), total_leido=VALUES(total_leido),
+                    periodo=VALUES(periodo), actualizado_en=NOW()
+            """) if _is_mysql() else _sql("""
+                INSERT INTO proceso_estado
+                    (id_lote, fase, mensaje, conciliados, pendientes, tasa,
+                     reporte, cuenta, total_leido, periodo, actualizado_en)
+                VALUES
+                    (:lote, :fase, :msg, :conci, :pend, :tasa,
+                     :reporte, :cuenta, :total, :periodo, CURRENT_TIMESTAMP)
+                ON CONFLICT(id_lote) DO UPDATE SET
+                    fase=excluded.fase, mensaje=excluded.mensaje,
+                    conciliados=excluded.conciliados, pendientes=excluded.pendientes,
+                    tasa=excluded.tasa, reporte=excluded.reporte,
+                    cuenta=excluded.cuenta, total_leido=excluded.total_leido,
+                    periodo=excluded.periodo,
+                    actualizado_en=CURRENT_TIMESTAMP
+            """), {
+                "lote": id_lote,
+                "fase": estado.get("fase", "idle"),
+                "msg": estado.get("mensaje", ""),
+                "conci": estado.get("conciliados", 0),
+                "pend": estado.get("pendientes", 0),
+                "tasa": estado.get("tasa", 0.0),
+                "reporte": estado.get("reporte"),
+                "cuenta": estado.get("cuenta"),
+                "total": estado.get("total_leido"),
+                "periodo": estado.get("periodo"),
+            })
+    except Exception as e:
+        print(f"⚠️ _escribir_estado error: {e}")
 
-    with open(_ESTADO_FILE, "w") as f:
-        json.dump(estado, f)
+
+def _is_mysql() -> bool:
+    from src.data.db_connection import IS_MYSQL
+    return IS_MYSQL
 
 
-# Inicializar si no existe
-if not os.path.exists(_ESTADO_FILE):
-    _escribir_estado(
-        {
-            "fase": "idle",
-            "mensaje": "",
-            "conciliados": 0,
-            "pendientes": 0,
-            "tasa": 0.0,
-            "reporte": None,
-        }
-    )
+def _init_proceso_estado():
+    """Crea la tabla proceso_estado si no existe."""
+    from src.data.db_manager import _serial, _autoincrement, _bigint
+    serial = _serial()
+    autoincr = _autoincrement()
+    bigint = _bigint()
+    try:
+        with engine.begin() as con:
+            if _is_mysql():
+                con.execute(_sql(f"""
+                    CREATE TABLE IF NOT EXISTS proceso_estado (
+                        id_lote      {bigint} PRIMARY KEY,
+                        fase         VARCHAR(20)  NOT NULL DEFAULT 'idle',
+                        mensaje      TEXT,
+                        conciliados  INTEGER DEFAULT 0,
+                        pendientes   INTEGER DEFAULT 0,
+                        tasa         REAL    DEFAULT 0.0,
+                        reporte      VARCHAR(500),
+                        cuenta       VARCHAR(50),
+                        total_leido  INTEGER DEFAULT 0,
+                        periodo      VARCHAR(20),
+                        actualizado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+            else:
+                con.execute(_sql(f"""
+                    CREATE TABLE IF NOT EXISTS proceso_estado (
+                        id_lote      {bigint} PRIMARY KEY,
+                        fase         TEXT NOT NULL DEFAULT 'idle',
+                        mensaje      TEXT,
+                        conciliados  INTEGER DEFAULT 0,
+                        pendientes   INTEGER DEFAULT 0,
+                        tasa         REAL    DEFAULT 0.0,
+                        reporte      TEXT,
+                        cuenta       TEXT,
+                        total_leido  INTEGER DEFAULT 0,
+                        periodo      TEXT,
+                        actualizado_en TEXT DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+    except Exception as e:
+        print(f"⚠️ _init_proceso_estado: {e}")
+
+
+_init_proceso_estado()
 
 
 def filas_a_transacciones(filas_db):
@@ -128,7 +221,7 @@ def _procesar_en_background(temp_path: str, id_lote: int):
         # ── 1. Ingestar ──────────────────────────────────────────────────────
         _escribir_estado(
             {
-                **_leer_estado(),
+                **_leer_estado(id_lote),
                 "fase": "cargando",
                 "mensaje": "Leyendo Excel y filtrando SIF82/TES82...",
             }
@@ -142,7 +235,7 @@ def _procesar_en_background(temp_path: str, id_lote: int):
 
         # ── 2. Insertar en DB por lotes ──────────────────────────────────────
         _escribir_estado(
-            {**_leer_estado(), "mensaje": f"Insertando {total_leido:,} registros en DB..."}
+            {**_leer_estado(id_lote), "mensaje": f"Insertando {total_leido:,} registros en DB..."}
         )
         registros = [
             (
@@ -169,7 +262,7 @@ def _procesar_en_background(temp_path: str, id_lote: int):
         # ── 3. F1-F4: Motor por localidades ─────────────────────────────────
         _escribir_estado(
             {
-                **_leer_estado(),
+                **_leer_estado(id_lote),
                 "fase": "procesando",
                 "mensaje": "F1-F4: Ejecutando motor por localidades...",
             }
@@ -179,7 +272,7 @@ def _procesar_en_background(temp_path: str, id_lote: int):
 
         for idx, localidad in enumerate(localidades, 1):
             # Verificar cancelación en cada localidad
-            if _leer_estado().get("fase") == "cancelado":
+            if _leer_estado(id_lote).get("fase") == "cancelado":
                 print("⚠️ Proceso cancelado por el usuario.")
                 _registrar_intento(cuenta, id_lote, total_c, total_leido, "CANCELADO")
                 return
@@ -192,7 +285,7 @@ def _procesar_en_background(temp_path: str, id_lote: int):
             gc.collect()
             _escribir_estado(
                 {
-                    **_leer_estado(),
+                    **_leer_estado(id_lote),
                     "mensaje": f"F1-F4 [{idx}/{len(localidades)}] Localidad {localidad}: {len(txs):,} regs",
                 }
             )
@@ -217,13 +310,13 @@ def _procesar_en_background(temp_path: str, id_lote: int):
         print(f"✅ F1-F4 localidades: {total_c:,} conciliados")
 
         # ── 4. F6g/F7/F7b – Subset Sum global sobre todos los pendientes ─────
-        if _leer_estado().get("fase") == "cancelado":
+        if _leer_estado(id_lote).get("fase") == "cancelado":
             print("⚠️ Proceso cancelado por el usuario.")
             _registrar_intento(cuenta, id_lote, total_c, total_leido, "CANCELADO")
             return
 
         _escribir_estado(
-            {**_leer_estado(), "mensaje": "F6/F7: Subset Sum global sobre pendientes..."}
+            {**_leer_estado(id_lote), "mensaje": "F6/F7: Subset Sum global sobre pendientes..."}
         )
         filas_global = db.obtener_todos_pendientes(cuenta, id_lote)
         n_pendientes_global = len(filas_global)
@@ -260,14 +353,14 @@ def _procesar_en_background(temp_path: str, id_lote: int):
 
         # ── 5. F5 – monto puro (último recurso) ─────────────────────────────
         _escribir_estado(
-            {**_leer_estado(), "mensaje": "F5: Conciliando por monto puro (último recurso)..."}
+            {**_leer_estado(id_lote), "mensaje": "F5: Conciliando por monto puro (último recurso)..."}
         )
         f5 = db.conciliar_por_monto_puro(cuenta, id_lote)
         total_c += f5
         print(f"✅ F5: {f5:,} conciliados por monto puro")
 
         # ── 6. Reporte desde DB ──────────────────────────────────────────────
-        _escribir_estado({**_leer_estado(), "mensaje": "Generando reporte..."})
+        _escribir_estado({**_leer_estado(id_lote), "mensaje": "Generando reporte..."})
         ruta = reporter.generar_excel_desde_db(db, cuenta, id_lote)
         pendientes_db = db.contar_pendientes_lote(cuenta, id_lote)
         tasa = (total_c / total_leido * 100) if total_leido else 0
@@ -320,12 +413,41 @@ def _procesar_en_background(temp_path: str, id_lote: int):
     except Exception as e:
         import traceback
 
-        _escribir_estado({**_leer_estado(), "fase": "error", "mensaje": str(e)})
+        _escribir_estado({**_leer_estado(id_lote), "fase": "error", "mensaje": str(e)})
         print(f"❌ Error background: {e}")
         traceback.print_exc()
 
+        # Registrar en historial como ERROR — siempre, incluso si el error fue temprano
+        _locals = locals()
+        cuenta_err   = _locals.get("cuenta", "—") or "—"
+        total_err    = _locals.get("total_leido", 0) or 0
+        conci_err    = _locals.get("total_c", 0) or 0
+
+        # Si no tenemos cuenta todavía, intentar leerla del Excel
+        if cuenta_err == "—" and os.path.exists(temp_path):
+            try:
+                import importlib as _il
+                _ingestor_mod = _il.import_module("src.data.ingestor")
+                _df = _ingestor_mod.DataIngestor(temp_path).procesar_excel()
+                if len(_df) > 0:
+                    cuenta_err = str(_df["cuenta_contable"][0])
+                    total_err  = len(_df)
+            except Exception:
+                pass
+
+        try:
+            _registrar_intento(cuenta_err, id_lote, conci_err, total_err, "ERROR")
+            print(f"📋 Error registrado en historial — lote {id_lote}, cuenta {cuenta_err}")
+        except Exception as _re:
+            print(f"⚠️ No se pudo registrar error en historial: {_re}")
+
+        raise  # re-lanzar para que _ejecutar_programada lo capture
+
     finally:
-        if os.path.exists(temp_path):
+        # Solo borrar si es un archivo temporal de subida directa (temp_)
+        # Los archivos de programadas (data_samples/programados/) se conservan
+        nombre = os.path.basename(temp_path)
+        if nombre.startswith("temp_") and os.path.exists(temp_path):
             os.remove(temp_path)
 
 
@@ -416,31 +538,25 @@ async def upload_and_reconcile(
     if not file.filename.endswith((".xlsx", ".xls")):
         raise HTTPException(400, "Solo se aceptan archivos .xlsx o .xls")
 
-    estado_actual = _leer_estado()
-    if estado_actual["fase"] in ("cargando", "procesando"):
-        raise HTTPException(409, "Ya hay un proceso en curso. Consulta /estado/")
-
     os.makedirs("data_samples", exist_ok=True)
-    temp_path = f"data_samples/temp_{file.filename}"
+    temp_path = f"data_samples/temp_{int(time.time())}_{file.filename}"
     with open(temp_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    id_lote = int(time.time())  # único por ejecución — nunca sobreescribe datos anteriores
-    _escribir_estado(
-        {
-            "fase": "iniciando",
-            "mensaje": "Archivo recibido, iniciando...",
-            "conciliados": 0,
-            "pendientes": 0,
-            "tasa": 0.0,
-            "reporte": None,
-        }
-    )
+    # Microsegundos — unicidad práctica sin necesitar login ni UUID
+    # Dos usuarios simultáneos tendrían que subir en el mismo microsegundo
+    id_lote = time.time_ns() // 1000
+    _escribir_estado({
+        "id_lote": id_lote, "fase": "iniciando",
+        "mensaje": "Archivo recibido, iniciando...",
+        "conciliados": 0, "pendientes": 0, "tasa": 0.0, "reporte": None,
+    })
     background_tasks.add_task(_procesar_en_background, temp_path, id_lote)
 
     return {
         "status": "aceptado",
-        "mensaje": "Proceso iniciado en background. Consulta GET /estado/ para ver progreso.",
+        "id_lote": id_lote,
+        "mensaje": "Proceso iniciado. Consulta GET /estado/?id_lote={id_lote} para ver progreso.",
         "archivo": file.filename,
     }
 
@@ -449,25 +565,24 @@ async def upload_and_reconcile(
 # ENDPOINT 2 — Estado del proceso
 # ══════════════════════════════════════════════════════════════════
 @router.get("/estado/", tags=["Conciliación"])
-async def estado():
-    """Retorna el estado actual del proceso de conciliación."""
-    return _leer_estado()
+async def estado(id_lote: int = Query(default=0)):
+    """Retorna el estado de un proceso específico por id_lote."""
+    return _leer_estado(id_lote)
 
 
 # ══════════════════════════════════════════════════════════════════
 # ENDPOINT 2b — Cancelar proceso en curso
 # ══════════════════════════════════════════════════════════════════
 @router.post("/cancelar/", tags=["Conciliación"])
-async def cancelar():
-    """
-    Marca el proceso como cancelado. El hilo de background detecta la señal
-    y se detiene en el próximo punto de control.
-    """
-    estado_actual = _leer_estado()
+async def cancelar(id_lote: int = Query(default=0)):
+    """Cancela un proceso activo por id_lote."""
+    if not id_lote:
+        return {"status": "noop", "mensaje": "Se requiere id_lote."}
+    estado_actual = _leer_estado(id_lote)
     if estado_actual.get("fase") not in ("cargando", "procesando", "iniciando"):
-        return {"status": "noop", "mensaje": "No hay proceso activo para cancelar."}
-
-    _escribir_estado({**estado_actual, "fase": "cancelado", "mensaje": "Cancelado por el usuario."})
+        return {"status": "noop", "mensaje": "No hay proceso activo para ese lote."}
+    _escribir_estado({**estado_actual, "id_lote": id_lote, "fase": "cancelado",
+                      "mensaje": "Cancelado por el usuario."})
     return {"status": "ok", "mensaje": "Señal de cancelación enviada."}
 
 
@@ -476,7 +591,6 @@ async def cancelar():
 # ══════════════════════════════════════════════════════════════════
 @router.post("/programar/", tags=["Conciliación"])
 async def programar_ejecucion(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     hora: str = Query(..., description="HH:MM – hora de ejecución"),
     fecha: str = Query(default="", description="YYYY-MM-DD – vacío = hoy"),
@@ -539,8 +653,7 @@ async def programar_ejecucion(
         )
         prog_id = result.inserted_primary_key[0] if IS_POSTGRES else result.lastrowid
 
-    # Iniciar el scheduler en background si no está corriendo
-    background_tasks.add_task(_scheduler_tick)
+    # El scheduler ya está corriendo desde main_api.py — no relanzar aquí
 
     return {
         "status": "programado",
@@ -647,26 +760,36 @@ def _scheduler_tick():
     Scheduler robusto de ejecuciones programadas.
     - Arranca un único hilo daemon al iniciar el servidor
     - Verifica cada 30 segundos si hay ejecuciones que ejecutar
+    - Solo ejecuta UNA conciliación a la vez — las demás esperan en cola
     - Al arrancar, recupera las que quedaron en EJECUTANDO (reinicio del servidor)
-    - Comparación correcta: fecha+hora como datetime completo
-    - Cada ejecución corre en su propio hilo para no bloquear el scheduler
     """
     import json as _json
     from datetime import datetime as _dt
     import threading as _th
 
+    # Lock global — solo una conciliación corre a la vez
+    _proceso_lock = _th.Lock()
+
     def _ejecutar_programada(prog_id: int, archivo_path: str, config_json: str):
-        """Ejecuta una conciliación programada en un hilo separado."""
-        try:
-            _marcar_programada(prog_id, "EJECUTANDO")
-            id_lote = int(time.time())
-            print(f"🕐 Scheduler: iniciando prog_id={prog_id} → lote {id_lote}")
-            _procesar_en_background(archivo_path, id_lote)
-            _marcar_programada(prog_id, "COMPLETADO")
-            print(f"✅ Scheduler: prog_id={prog_id} completado")
-        except Exception as e:
-            print(f"❌ Scheduler: prog_id={prog_id} error: {e}")
-            _marcar_programada(prog_id, "ERROR")
+        """Ejecuta una conciliación programada. Espera si hay otra en curso."""
+        import traceback as _tb
+        if not os.path.isabs(archivo_path):
+            archivo_path = os.path.join(_BASE_DIR, archivo_path)
+
+        print(f"🕐 Scheduler: prog_id={prog_id} esperando lock...")
+        with _proceso_lock:  # bloquea hasta que la anterior termine
+            try:
+                _marcar_programada(prog_id, "EJECUTANDO")
+                id_lote = time.time_ns() // 1000
+                print(f"🕐 Scheduler: iniciando prog_id={prog_id} → lote {id_lote}")
+                print(f"   Archivo: {archivo_path}")
+                _procesar_en_background(archivo_path, id_lote)
+                _marcar_programada(prog_id, "COMPLETADO")
+                print(f"✅ Scheduler: prog_id={prog_id} completado")
+            except Exception as e:
+                print(f"❌ Scheduler: prog_id={prog_id} error: {e}")
+                _tb.print_exc()
+                _marcar_programada(prog_id, "ERROR")
 
     def _run():
         print("🕐 Scheduler de ejecuciones programadas iniciado.")
@@ -718,18 +841,19 @@ def _scheduler_tick():
                         )
                         continue
 
+                    # Resolver ruta absoluta del archivo
+                    ruta_abs = archivo_path if os.path.isabs(archivo_path) else os.path.join(_BASE_DIR, archivo_path)
+
                     # Verificar que el archivo existe
-                    if not os.path.exists(archivo_path):
-                        print(
-                            f"❌ Scheduler: archivo no encontrado para prog_id={prog_id}: {archivo_path}"
-                        )
+                    if not os.path.exists(ruta_abs):
+                        print(f"❌ Scheduler: archivo no encontrado para prog_id={prog_id}: {ruta_abs}")
                         _marcar_programada(prog_id, "ERROR")
                         continue
 
                     # Lanzar en hilo separado para no bloquear el scheduler
                     t = _th.Thread(
                         target=_ejecutar_programada,
-                        args=(prog_id, archivo_path, config_json),
+                        args=(prog_id, ruta_abs, config_json),
                         name=f"conciliacion_prog_{prog_id}",
                         daemon=True,
                     )
@@ -819,8 +943,10 @@ async def upload_multi(
                 os.remove(temp_path)
 
     # accion == "conciliar"
+    id_lote_multi = time.time_ns() // 1000
     _escribir_estado(
         {
+            "id_lote": id_lote_multi,
             "fase": "iniciando",
             "mensaje": "Iniciando conciliación multi-período...",
             "conciliados": 0,
@@ -829,8 +955,9 @@ async def upload_multi(
             "reporte": None,
         }
     )
-    background_tasks.add_task(_procesar_en_background, temp_path, 2)
-    return {"status": "aceptado", "mensaje": "Consulta GET /estado/ para ver progreso."}
+    background_tasks.add_task(_procesar_en_background, temp_path, id_lote_multi)
+    return {"status": "aceptado", "id_lote": id_lote_multi,
+            "mensaje": "Consulta GET /estado/?id_lote={id_lote} para ver progreso."}
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1598,7 +1725,7 @@ def _inferir_fases_en_background():
     """
     _escribir_estado(
         {
-            **_leer_estado(),
+            **_leer_estado(id_lote),
             "fase": "procesando",
             "mensaje": "Infiriendo fases de conciliaciones antiguas...",
         }
@@ -1614,7 +1741,7 @@ def _inferir_fases_en_background():
     if not grupos_sin_fase:
         _escribir_estado(
             {
-                **_leer_estado(),
+                **_leer_estado(id_lote),
                 "fase": "listo",
                 "mensaje": "Todas las conciliaciones ya tienen fase asignada.",
             }
@@ -1677,7 +1804,7 @@ def _inferir_fases_en_background():
             pct = min(100, int(i / len(grupos_sin_fase) * 100))
             _escribir_estado(
                 {
-                    **_leer_estado(),
+                    **_leer_estado(id_lote),
                     "mensaje": f"Infiriendo fases... {pct}% ({i:,}/{len(grupos_sin_fase):,} grupos)",
                 }
             )
@@ -1685,7 +1812,7 @@ def _inferir_fases_en_background():
     resumen = ", ".join(f"{f}:{v:,}" for f, v in actualizados.items() if v > 0)
     _escribir_estado(
         {
-            **_leer_estado(),
+            **_leer_estado(id_lote),
             "fase": "listo",
             "mensaje": f"Fases inferidas en {time.time()-t0:.1f}s — {resumen}",
         }

@@ -5,7 +5,6 @@ import {
 } from "@/context/ReconciliationContext";
 import { useApp, getMonthName } from "@/context/AppContext";
 import {
-  Download,
   FileSpreadsheet,
   Eye,
   EyeOff,
@@ -17,6 +16,9 @@ import {
   CalendarClock,
   Trash2,
   Timer,
+  CheckCircle2,
+  AlertTriangle,
+  Ban,
 } from "lucide-react";
 import { ExcelIcon, PdfIcon } from "@/components/FileIcons";
 import {
@@ -32,6 +34,37 @@ import {
 import StatCard from "@/components/StatCard";
 import TransaccionesTable from "@/components/TransaccionesTable";
 import { CheckCircle, Clock, Layers } from "lucide-react";
+
+// ── Badge de estado con icono ─────────────────────────────────────────────────
+function EstadoBadge({ estado }: { estado?: string }) {
+  switch (estado) {
+    case "CANCELADO":
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-600 border border-red-200">
+          <Ban className="w-3 h-3" /> Cancelado
+        </span>
+      );
+    case "ERROR":
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+          <AlertTriangle className="w-3 h-3" /> Error
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+          <CheckCircle2 className="w-3 h-3" /> Completado
+        </span>
+      );
+  }
+}
+
+// ── Color de fondo por estado ─────────────────────────────────────────────────
+function rowBg(estado?: string) {
+  if (estado === "CANCELADO") return "bg-red-50/70 border-l-4 border-l-red-400";
+  if (estado === "ERROR") return "bg-amber-50/70 border-l-4 border-l-amber-400";
+  return "bg-muted/50";
+}
 
 // ── Formatea segundos como "2h 15m 30s" ──────────────────────────────────────
 function formatCountdown(secs: number): string {
@@ -341,13 +374,7 @@ export default function HistorialSection() {
                         onClick={() =>
                           setSelectedId(isSelected ? null : (item.id ?? null))
                         }
-                        className={`cursor-pointer flex items-center p-4 rounded-2xl hover:bg-muted transition-colors ${
-                          item.estado === "CANCELADO"
-                            ? "bg-red-50/60"
-                            : item.estado === "ERROR"
-                              ? "bg-amber-50/60"
-                              : "bg-muted/50"
-                        }`}
+                        className={`cursor-pointer flex items-center p-4 rounded-2xl hover:brightness-95 transition-all ${rowBg(item.estado)}`}
                       >
                         <div className="w-[130px] shrink-0">
                           <p className="text-xs text-muted-foreground">Fecha</p>
@@ -401,19 +428,7 @@ export default function HistorialSection() {
                           )}
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          {item.estado === "CANCELADO" ? (
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-600">
-                              Cancelado
-                            </span>
-                          ) : item.estado === "ERROR" ? (
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-600">
-                              Error
-                            </span>
-                          ) : (
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-success/10 text-success">
-                              Completado
-                            </span>
-                          )}
+                          <EstadoBadge estado={item.estado} />
                           <ChevronDown
                             className={`w-4 h-4 text-muted-foreground transition-transform ${isSelected ? "rotate-180" : ""}`}
                           />
@@ -422,14 +437,41 @@ export default function HistorialSection() {
 
                       {isSelected && (
                         <div className="mt-2 p-6 bg-background rounded-2xl border border-border space-y-6">
-                          <h4 className="text-sm font-semibold text-card-foreground">
-                            Detalle — {item.date} — Cuenta {item.cuenta}
-                            {item.id && (
-                              <span className="ml-2 text-xs text-muted-foreground font-normal">
-                                (Ejecución #{item.id})
-                              </span>
-                            )}
-                          </h4>
+                          <div className="flex items-start justify-between gap-4">
+                            <h4 className="text-sm font-semibold text-card-foreground">
+                              Detalle — {item.date} — Cuenta {item.cuenta}
+                              {item.id && (
+                                <span className="ml-2 text-xs text-muted-foreground font-normal">
+                                  (Ejecución #{item.id})
+                                </span>
+                              )}
+                            </h4>
+                            <EstadoBadge estado={item.estado} />
+                          </div>
+
+                          {/* Banner de estado no completado */}
+                          {item.estado === "ERROR" && (
+                            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-semibold text-amber-800">La ejecución falló</p>
+                                <p className="text-xs text-amber-700 mt-0.5">
+                                  Revisa los logs del servidor para ver el error detallado. Los datos parcialmente procesados quedaron registrados.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {item.estado === "CANCELADO" && (
+                            <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
+                              <Ban className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-semibold text-red-800">Ejecución cancelada por el usuario</p>
+                                <p className="text-xs text-red-700 mt-0.5">
+                                  Se procesaron {(item.conciliados ?? 0).toLocaleString()} registros antes de la cancelación.
+                                </p>
+                              </div>
+                            </div>
+                          )}
                           <div className="h-48">
                             <ResponsiveContainer width="100%" height="100%">
                               <BarChart data={barData} barSize={40}>

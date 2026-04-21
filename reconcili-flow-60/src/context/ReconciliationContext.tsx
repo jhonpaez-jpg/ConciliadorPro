@@ -98,6 +98,7 @@ function parsePeriodo(periodo?: string): { mes: number; anio: number } | null {
 async function pollEstado(
   onProgress: (msg: string) => void,
   signal: { cancelled: boolean },
+  id_lote: number,
 ): Promise<any> {
   const MAX_WAIT = 3_600_000;
   const start = Date.now();
@@ -107,6 +108,7 @@ async function pollEstado(
     if (signal.cancelled) throw new Error("CANCELLED");
     try {
       const { data } = await axios.get(`${API_BASE}/estado/`, {
+        params: { id_lote },
         timeout: 15_000,
       });
       onProgress(data.mensaje || "Procesando...");
@@ -176,6 +178,8 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [scheduled, setScheduled] = useState<ScheduledEntry[]>([]);
   const [config, setConfigState] = useState<ReconciliationConfig>(loadConfig());
+  // id_lote del proceso activo — permite cancelar y hacer polling correcto
+  const activeLoteRef = useRef<number>(0);
   // Señal de cancelación compartida con el loop de polling
   const cancelSignal = { cancelled: false };
 
@@ -227,18 +231,21 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const _checkActiveProcess = async () => {
+    // Recuperar id_lote activo de sessionStorage (persiste al recargar)
+    const savedLote = parseInt(sessionStorage.getItem("active_id_lote") ?? "0");
+    if (!savedLote) return;
     try {
       const { data } = await axios.get(`${API_BASE}/estado/`, {
+        params: { id_lote: savedLote },
         timeout: 5_000,
       });
       const faseActiva = ["cargando", "procesando", "iniciando"];
       if (faseActiva.includes(data.fase)) {
-        // Hay un proceso corriendo — retomar el polling
+        activeLoteRef.current = savedLote;
         setState("processing");
         setProgressMessage(data.mensaje || "Procesando...");
-        // Reanudar el loop de polling con la señal actual
         cancelSignal.cancelled = false;
-        pollEstado((msg) => setProgressMessage(msg), cancelSignal)
+        pollEstado((msg) => setProgressMessage(msg), cancelSignal, savedLote)
           .then((result) => {
             const periodoInfo = parsePeriodo(result.periodo);
             const total = (result.conciliados ?? 0) + (result.pendientes ?? 0);
@@ -259,21 +266,19 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
             });
             setState("success");
             setProgressMessage("");
+            sessionStorage.removeItem("active_id_lote");
             fetchHistorialFromBackend();
           })
           .catch((e) => {
-            if (e.message === "CANCELLED") {
-              setState("idle");
-            } else {
-              setState("error");
-              setErrorMessage(e.message || "Error al procesar");
-            }
+            if (e.message === "CANCELLED") setState("idle");
+            else { setState("error"); setErrorMessage(e.message || "Error al procesar"); }
             setProgressMessage("");
+            sessionStorage.removeItem("active_id_lote");
           });
+      } else {
+        sessionStorage.removeItem("active_id_lote");
       }
-    } catch {
-      /* backend no disponible */
-    }
+    } catch { /* backend no disponible */ }
   };
 
   // Ref para detectar cambios de estado en programadas y notificar
@@ -298,6 +303,7 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
             "⚙️ Conciliación programada iniciada",
             `Procesando: ${nueva.archivo}`,
             `programada-inicio-${nueva.id}`,
+            "info",
           );
         }
 
@@ -307,8 +313,8 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
             "✅ Conciliación programada completada",
             `Archivo procesado: ${nueva.archivo}`,
             `programada-fin-${nueva.id}`,
+            "success",
           );
-          // Refrescar historial para que aparezca la nueva entrada
           fetchHistorialFromBackend();
         }
 
@@ -318,6 +324,7 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
             "❌ Error en conciliación programada",
             `Falló el procesamiento de: ${nueva.archivo}`,
             `programada-error-${nueva.id}`,
+            "error",
           );
         }
       }
@@ -354,7 +361,7 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
       : new URLSearchParams();
 
     try {
-      await axios.post(
+      const uploadResp = await axios.post(
         `${API_BASE}/upload-and-reconcile/?${params}`,
         formData,
         {
@@ -363,10 +370,16 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
         },
       );
 
+      // Capturar el id_lote devuelto por el backend — identifica este proceso
+      const id_lote: number = uploadResp.data?.id_lote ?? 0;
+      activeLoteRef.current = id_lote;
+      sessionStorage.setItem("active_id_lote", String(id_lote));
+
       setProgressMessage("Procesando...");
       const data = await pollEstado(
         (msg) => setProgressMessage(msg),
         cancelSignal,
+        id_lote,
       );
 
       const periodoInfo = parsePeriodo(data.periodo);
@@ -390,6 +403,8 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
       setResult(mapped);
       setState("success");
       setProgressMessage("");
+      sessionStorage.removeItem("active_id_lote");
+      activeLoteRef.current = 0;
 
       toast({
         title: "✅ Conciliación exitosa",
@@ -401,13 +416,15 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
         "✅ Conciliación completada",
         `Cuenta ${mapped.cuenta_procesada}: ${mapped.conciliados.toLocaleString()} conciliados (${tasa.toFixed(1)}%)`,
         "conciliacion-completa",
+        "success",
       );
 
       // Refrescar historial desde el backend (ya incluye la nueva ejecución)
       await fetchHistorialFromBackend();
     } catch (error: any) {
+      sessionStorage.removeItem("active_id_lote");
+      activeLoteRef.current = 0;
       setState("error");
-      // Si fue cancelación, no mostrar como error
       if (error.message === "CANCELLED") {
         setState("idle");
         setProgressMessage("");
@@ -459,6 +476,7 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
       "📅 Ejecución programada",
       `El archivo se procesará el ${fecha} a las ${hora}`,
       "programada-creada",
+      "scheduled",
     );
   };
 
@@ -478,11 +496,14 @@ export function ReconciliationProvider({ children }: { children: ReactNode }) {
   const cancelReconciliation = async () => {
     cancelSignal.cancelled = true;
     try {
-      await axios.post(`${API_BASE}/cancelar/`);
+      await axios.post(`${API_BASE}/cancelar/`, null, {
+        params: { id_lote: activeLoteRef.current },
+      });
     } catch {}
     setState("idle");
     setProgressMessage("");
     setErrorMessage(null);
+    activeLoteRef.current = 0;
   };
 
   const downloadReport = async (rutaReporte: string) => {
