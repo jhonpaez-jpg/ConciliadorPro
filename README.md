@@ -112,18 +112,19 @@ El estado de cada proceso se persiste en la tabla `proceso_estado` de la DB, ide
 
 ## 📦 Requisitos previos
 
-- **Python 3.10+** — [python.org](https://python.org)
-- **Node.js 18+** — [nodejs.org](https://nodejs.org)
-- **pip** (incluido con Python)
+- **Windows 10/11** — los `.bat` instalan todo automáticamente
+- **Python 3.10+** — se instala solo si usas los `.bat`; o manualmente desde [python.org](https://python.org)
+- **Node.js 18+** — se instala solo si usas los `.bat`; o manualmente desde [nodejs.org](https://nodejs.org)
 
-Para base de datos remota (opcional):
-- Cuenta en [Railway](https://railway.app), [PlanetScale](https://planetscale.com) u otro proveedor MySQL/PostgreSQL
+> Si usas los `.bat`, no necesitas instalar nada manualmente. El script detecta qué falta y lo instala.
 
 ---
 
 ## ⚡ Inicio rápido — archivos .bat
 
-La forma más simple. Los `.bat` detectan automáticamente si el entorno virtual es válido para la ruta actual y lo recrean si es necesario.
+La forma más simple. Los `.bat` instalan Python y Node.js automáticamente si no están presentes, y recrean el entorno virtual si la carpeta fue movida a otro equipo.
+
+> **Requisito mínimo:** Windows 10/11. No necesitas tener Python ni Node.js instalados previamente.
 
 ### 1. Iniciar el backend
 
@@ -132,11 +133,11 @@ Doble clic en:
 Motor_Conciliaciones\start_server.bat
 ```
 
-El script:
-1. Verifica que Python esté instalado
+El script hace automáticamente:
+1. Detecta si Python está instalado — si no, lo instala via `winget` o descargando el instalador
 2. Detecta si el `venv` es válido para esta ruta (importante al mover la carpeta entre equipos)
-3. Si no es válido, lo borra y recrea automáticamente
-4. Instala todas las dependencias de `requirements.txt`
+3. Si el `venv` no es válido, lo borra y recrea
+4. Instala todas las dependencias de `requirements.txt` si faltan
 5. Arranca uvicorn en `http://0.0.0.0:8000`
 
 ### 2. Iniciar el frontend
@@ -146,8 +147,8 @@ Doble clic en:
 reconcili-flow-60\start_frontend.bat
 ```
 
-El script:
-1. Verifica que Node.js esté instalado
+El script hace automáticamente:
+1. Detecta si Node.js está instalado — si no, lo instala via `winget` o descargando el instalador
 2. Instala dependencias npm si `node_modules` no existe
 3. Arranca Vite en `https://localhost:8080` (HTTPS para notificaciones)
 
@@ -156,7 +157,30 @@ El script:
 - **Local:** `https://localhost:8080`
 - **Red local:** `https://192.168.X.X:8080`
 
-> La primera vez el navegador mostrará advertencia de certificado no confiable. Haz clic en **Avanzado → Continuar** — es el certificado self-signed de desarrollo.
+> La primera vez el navegador mostrará advertencia de certificado no confiable. Haz clic en **Avanzado → Continuar** — es el certificado self-signed de desarrollo. Solo ocurre una vez por navegador.
+
+### ¿Qué pasa si el equipo no tiene Python ni Node.js?
+
+Los `.bat` intentan instalarlos en este orden:
+1. **`winget`** (disponible en Windows 10 21H1+ y Windows 11) — instalación silenciosa sin intervención
+2. **Descarga directa** del instalador oficial si `winget` no está disponible
+
+Si ninguno funciona, el `.bat` muestra este mensaje y se detiene:
+
+```
+[ERROR] No se pudo instalar Python automaticamente.
+        Instala Python 3.10+ manualmente desde https://python.org
+        Asegurate de marcar "Add Python to PATH" durante la instalacion.
+```
+
+**Instalación manual — paso a paso:**
+
+| Componente | Descarga | Nota importante |
+|---|---|---|
+| Python 3.10+ | [python.org/downloads](https://www.python.org/downloads/) | ✅ Marcar **"Add Python to PATH"** al instalar |
+| Node.js 18+ | [nodejs.org/en/download](https://nodejs.org/en/download/) | Instalar versión **LTS** |
+
+Después de instalar manualmente, cierra y vuelve a abrir el `.bat` — detectará los runtimes y continuará normalmente.
 
 ---
 
