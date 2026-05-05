@@ -11,44 +11,24 @@ echo.
 
 cd /d "%~dp0"
 
-:: ── 1. Verificar / instalar Python ───────────────────────────────────────────
+:: ── 1. Verificar Python ───────────────────────────────────
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [INFO] Python no encontrado. Intentando instalar con winget...
-    winget install --id Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
-    if errorlevel 1 (
-        echo [INFO] winget no disponible. Descargando instalador de Python...
-        powershell -Command "Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe' -OutFile '%TEMP%\python_installer.exe'"
-        "%TEMP%\python_installer.exe" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
-        del "%TEMP%\python_installer.exe" >nul 2>&1
-    )
-    :: Refrescar PATH
-    call refreshenv >nul 2>&1
-    python --version >nul 2>&1
-    if errorlevel 1 (
-        echo.
-        echo [ERROR] No se pudo instalar Python automaticamente.
-        echo         Instala Python 3.10+ manualmente desde https://python.org
-        echo         Asegurate de marcar "Add Python to PATH" durante la instalacion.
-        echo.
-        pause
-        exit /b 1
-    )
-    echo [OK] Python instalado correctamente.
+    echo [ERROR] Python no esta instalado.
+    echo.
+    echo Por favor instala Python 3.11 o 3.12 desde:
+    echo https://www.python.org/downloads/
+    echo IMPORTANTE: Marca "Add Python to PATH"
+    echo.
+    pause
+    exit /b 1
 )
 
-for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo [OK] %%v encontrado.
+for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo [OK] %%v detectado.
 
-:: ── 2. Verificar / recrear venv ──────────────────────────────────────────────
-set VENV_OK=0
-if exist "venv\Scripts\python.exe" (
-    venv\Scripts\python.exe -c "import sys; sys.exit(0)" >nul 2>&1
-    if not errorlevel 1 set VENV_OK=1
-)
-
-if "%VENV_OK%"=="0" (
+:: ── 2. Crear entorno virtual si no existe ─────────────────
+if not exist "venv\Scripts\python.exe" (
     echo [INFO] Creando entorno virtual...
-    if exist "venv" rmdir /s /q venv >nul 2>&1
     python -m venv venv
     if errorlevel 1 (
         echo [ERROR] No se pudo crear el entorno virtual.
@@ -57,27 +37,68 @@ if "%VENV_OK%"=="0" (
     )
 )
 
-:: ── 3. Instalar / actualizar dependencias ────────────────────────────────────
-if not exist "venv\Scripts\uvicorn.exe" (
-    echo [INFO] Instalando dependencias (primera vez, puede tardar unos minutos)...
-    venv\Scripts\pip install -r requirements.txt -q --no-warn-script-location
+:: ── 3. Activar entorno virtual ────────────────────────────
+call venv\Scripts\activate
+
+:: ── 4. Actualizar pip ─────────────────────────────────────
+echo [INFO] Actualizando pip...
+python -m pip install --upgrade pip >nul 2>&1
+
+:: ── 5. Instalar dependencias SIEMPRE ──────────────────────
+if not exist "requirements.txt" (
+    echo [ERROR] No se encontro requirements.txt
+    pause
+    exit /b 1
+)
+
+echo [INFO] Instalando dependencias (esto puede tardar)...
+pip install -r requirements.txt --upgrade --no-warn-script-location
+if errorlevel 1 (
+    echo [ERROR] Fallo instalando dependencias.
+    echo Intentando reparar entorno...
+    
+    :: Intento de reparación automática
+    pip install --upgrade setuptools wheel
+    pip install -r requirements.txt
+    
     if errorlevel 1 (
-        echo [ERROR] Fallo al instalar dependencias.
+        echo [ERROR] No se pudo instalar dependencias.
         pause
         exit /b 1
     )
-    echo [OK] Dependencias instaladas.
-) else (
-    echo [OK] Dependencias ya instaladas.
 )
 
-:: ── 4. Iniciar servidor ───────────────────────────────────────────────────────
+echo [OK] Dependencias listas.
+
+:: ── 6. Validar librerias críticas ─────────────────────────
+echo [INFO] Verificando librerias necesarias...
+
+python -c "import uvicorn, fastapi, xlsxwriter" >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Faltan librerias criticas.
+    echo Intentando instalar manualmente...
+    pip install uvicorn fastapi XlsxWriter
+    
+    python -c "import uvicorn, fastapi, xlsxwriter" >nul 2>&1
+    if errorlevel 1 (
+        echo [ERROR] No se pudieron cargar las librerias necesarias.
+        pause
+        exit /b 1
+    )
+)
+
+echo [OK] Librerias verificadas.
+
+:: ── 7. Iniciar servidor ───────────────────────────────────
+:start_server
 echo.
 echo [OK] Iniciando servidor en http://localhost:8000
-echo [OK] Acceso en red local: http://%COMPUTERNAME%:8000
 echo [OK] Presiona Ctrl+C para detener
 echo.
 
-venv\Scripts\uvicorn src.api.main_api:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn src.api.main_api:app --host 0.0.0.0 --port 8000 --reload
 
+echo.
+echo [INFO] Servidor detenido.
 pause
+goto start_server

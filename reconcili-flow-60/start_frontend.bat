@@ -1,66 +1,65 @@
 @echo off
-setlocal EnableDelayedExpansion
-title Conciliador Pro — Frontend
+setlocal
+
+title Conciliador Pro - Frontend
 
 echo.
-echo  ╔══════════════════════════════════════════════════════╗
-echo  ║         Conciliador Pro — Frontend Vite              ║
-echo  ║         https://localhost:8080                       ║
-echo  ╚══════════════════════════════════════════════════════╝
+echo ==========================================
+echo   Conciliador Pro - Frontend
+echo   http://localhost:5173
+echo ==========================================
 echo.
 
 cd /d "%~dp0"
 
-:: ── 1. Verificar / instalar Node.js ──────────────────────────────────────────
-node --version >nul 2>&1
-if errorlevel 1 (
-    echo [INFO] Node.js no encontrado. Intentando instalar con winget...
-    winget install --id OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
-    if errorlevel 1 (
-        echo [INFO] winget no disponible. Descargando instalador de Node.js...
-        powershell -Command "Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.11.0/node-v20.11.0-x64.msi' -OutFile '%TEMP%\node_installer.msi'"
-        msiexec /i "%TEMP%\node_installer.msi" /quiet /norestart
-        del "%TEMP%\node_installer.msi" >nul 2>&1
-    )
-    :: Refrescar PATH
-    call refreshenv >nul 2>&1
-    node --version >nul 2>&1
-    if errorlevel 1 (
-        echo.
-        echo [ERROR] No se pudo instalar Node.js automaticamente.
-        echo         Instala Node.js 18+ manualmente desde https://nodejs.org
-        echo.
-        pause
-        exit /b 1
-    )
-    echo [OK] Node.js instalado correctamente.
+set "NODE_EXE=C:\Program Files\nodejs\node.exe"
+set "NPM_CMD=C:\Program Files\nodejs\npm.cmd"
+
+if not exist "%NODE_EXE%" (
+    echo [ERROR] Node.js no encontrado en:
+    echo   %NODE_EXE%
+    echo.
+    echo Descargalo desde: https://nodejs.org
+    echo.
+    pause
+    exit /b 1
 )
 
-for /f "tokens=*" %%v in ('node --version 2^>^&1') do echo [OK] Node.js %%v encontrado.
+for /f "tokens=*" %%v in ('"%NODE_EXE%" --version') do echo [OK] Node %%v detectado
 
-:: ── 2. Instalar dependencias npm ─────────────────────────────────────────────
+if not exist "%NPM_CMD%" (
+    echo [ERROR] npm no encontrado. Reinstala Node.js.
+    pause
+    exit /b 1
+)
+
+for /f "tokens=*" %%v in ('"%NPM_CMD%" --version') do echo [OK] npm %%v detectado
+
+if not exist "package.json" (
+    echo [ERROR] package.json no encontrado en %CD%
+    pause
+    exit /b 1
+)
+
 if not exist "node_modules" (
-    echo [INFO] Instalando dependencias npm (primera vez, puede tardar unos minutos)...
-    npm install --silent
+    echo.
+    echo [INFO] Instalando dependencias, espera...
+    "%NPM_CMD%" install
     if errorlevel 1 (
         echo [ERROR] Fallo npm install.
         pause
         exit /b 1
     )
-    echo [OK] Dependencias instaladas.
-) else (
-    echo [OK] Dependencias ya instaladas.
 )
 
-:: ── 3. Iniciar frontend ───────────────────────────────────────────────────────
+echo [OK] Todo listo. Iniciando servidor...
 echo.
-echo [OK] Iniciando frontend en https://localhost:8080
-echo [OK] Acceso en red local: https://%COMPUTERNAME%:8080
-echo [INFO] Primera vez: el navegador mostrara advertencia de certificado.
-echo        Haz clic en "Avanzado" y luego "Continuar" para aceptarlo.
-echo [OK] Presiona Ctrl+C para detener
+echo   Abre en el navegador: http://localhost:5173
+echo   Presiona Ctrl+C para detener.
 echo.
 
-npm run dev
+"%NPM_CMD%" run dev
 
+echo.
+echo [INFO] Servidor detenido.
 pause

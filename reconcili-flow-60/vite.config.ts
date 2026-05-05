@@ -6,13 +6,11 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
-    port: 8080,
-    https: true, // Vite genera certificado automáticamente
+    host: "localhost",
+    port: 5173,
     hmr: {
       overlay: false,
     },
-    historyApiFallback: true,
     proxy: {
       "/api": {
         target: "http://localhost:8000",
